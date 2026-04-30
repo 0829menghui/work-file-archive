@@ -1525,6 +1525,7 @@ textarea:focus-visible {
 
 .admin-create select,
 .admin-create input,
+.admin-module-card input,
 .admin-user-controls select {
   min-height: 36px;
   border: 1px solid #ccd8e1;
@@ -1544,6 +1545,72 @@ textarea:focus-visible {
   gap: 10px;
   padding: 16px;
   margin-bottom: 16px;
+}
+
+.admin-module-manager {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-section-title {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.admin-section-title span {
+  color: var(--muted);
+}
+
+.admin-module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.admin-module-card {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #dce7ed;
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.admin-module-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  grid-row: span 4;
+  border-radius: 8px;
+  background: #e9f5f7;
+  color: var(--accent);
+}
+
+.admin-module-card label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-module-card button {
+  justify-self: start;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .admin-create .module-checks,
@@ -2230,6 +2297,7 @@ textarea:focus-visible {
   .learning-stats,
   .learning-workspace,
   .learning-editor-meta,
+  .admin-module-grid,
   .admin-create,
   .admin-user-row {
     grid-template-columns: 1fr 1fr;
@@ -2286,6 +2354,7 @@ textarea:focus-visible {
   .learning-stats,
   .learning-workspace,
   .learning-editor-meta,
+  .admin-module-grid,
   .admin-create,
   .admin-user-row {
     grid-template-columns: 1fr;

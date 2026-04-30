@@ -513,6 +513,37 @@ def admin_delete_user(target_user_id: int, user: dict = Depends(require_admin)) 
     return {"ok": True}
 
 
+@app.patch("/api/admin/modules/{module_key}")
+def admin_update_module(
+    module_key: str,
+    payload: dict,
+    user: dict = Depends(require_admin),
+) -> dict:
+    name = (payload.get("name") or "").strip()
+    description = (payload.get("description") or "").strip()
+    sort_order = payload.get("sort_order")
+    if not name:
+        raise HTTPException(status_code=400, detail="模块名称不能为空")
+    try:
+        sort_order_value = int(sort_order)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="排序必须是数字") from exc
+    with get_db() as conn:
+        target = conn.execute("SELECT * FROM modules WHERE key = ?", (module_key,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="模块不存在")
+        conn.execute(
+            """
+            UPDATE modules
+            SET name = ?, description = ?, sort_order = ?
+            WHERE key = ?
+            """,
+            (name, description, sort_order_value, module_key),
+        )
+        log_action(conn, user["id"], "update_module", "module", target["id"], module_key)
+    return {"ok": True}
+
+
 @app.get("/api/projects")
 def list_projects(user: dict = Depends(require_user)) -> list[dict]:
     with get_db() as conn:

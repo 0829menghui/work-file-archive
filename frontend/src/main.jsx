@@ -617,6 +617,7 @@ function App() {
     return Number.isFinite(value) ? Math.min(Math.max(value, 280), 560) : 360;
   });
   const [adminData, setAdminData] = useState({ users: [], modules: [] });
+  const [moduleDrafts, setModuleDrafts] = useState({});
   const [newUser, setNewUser] = useState({
     username: "",
     display_name: "",
@@ -869,6 +870,14 @@ function App() {
     try {
       const data = await apiFetch("/admin/users", {}, token);
       setAdminData(data);
+      setModuleDrafts(Object.fromEntries(data.modules.map((module) => [
+        module.key,
+        {
+          name: module.name,
+          description: module.description || "",
+          sort_order: module.sort_order ?? 0,
+        },
+      ])));
       setNewUser((current) => ({
         ...current,
         module_permissions: Object.keys(current.module_permissions).length
@@ -1400,6 +1409,32 @@ function App() {
       await apiFetch(`/admin/users/${targetUser.id}`, { method: "DELETE" }, token);
       await loadAdminData();
       setMessage("账号已删除");
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  function setModuleDraft(moduleKey, patch) {
+    setModuleDrafts((current) => ({
+      ...current,
+      [moduleKey]: {
+        ...(current[moduleKey] || {}),
+        ...patch,
+      },
+    }));
+  }
+
+  async function updateModule(module) {
+    const draft = moduleDrafts[module.key] || module;
+    try {
+      await apiFetch(
+        `/admin/modules/${module.key}`,
+        { method: "PATCH", body: JSON.stringify(draft) },
+        token
+      );
+      await loadAdminData();
+      await loadModules();
+      setMessage("模块已更新");
     } catch (err) {
       showError(err);
     }
@@ -2242,9 +2277,50 @@ function App() {
             <div className="module-page-head">
               <div>
                 <strong>用户与模块权限</strong>
-                <span>admin 可以查看所有模块，并为用户授权</span>
+                <span>admin 可以管理模块展示信息、账号和用户授权</span>
               </div>
             </div>
+            <section className="admin-module-manager">
+              <div className="admin-section-title">
+                <strong>模块管理</strong>
+                <span>修改模块在侧边栏和授权区展示的名称、说明和排序</span>
+              </div>
+              <div className="admin-module-grid">
+                {adminData.modules.map((module) => {
+                  const draft = moduleDrafts[module.key] || module;
+                  return (
+                    <article className="admin-module-card" key={module.key}>
+                      <div className="admin-module-icon">
+                        <ModuleIcon moduleKey={module.key} size={20} />
+                      </div>
+                      <label>
+                        <span>模块名称</span>
+                        <input
+                          value={draft.name || ""}
+                          onChange={(event) => setModuleDraft(module.key, { name: event.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span>说明</span>
+                        <input
+                          value={draft.description || ""}
+                          onChange={(event) => setModuleDraft(module.key, { description: event.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span>排序</span>
+                        <input
+                          type="number"
+                          value={draft.sort_order ?? 0}
+                          onChange={(event) => setModuleDraft(module.key, { sort_order: event.target.value })}
+                        />
+                      </label>
+                      <button type="button" onClick={() => updateModule(module)}>保存模块</button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
             <form className="admin-create" onSubmit={createUser}>
               <input
                 placeholder="用户名"

@@ -175,10 +175,7 @@ def init_db() -> None:
                 """
                 INSERT INTO modules (key, name, description, sort_order, created_at)
                 VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    name = excluded.name,
-                    description = excluded.description,
-                    sort_order = excluded.sort_order
+                ON CONFLICT(key) DO NOTHING
                 """,
                 (key, name, description, sort_order, now),
             )
