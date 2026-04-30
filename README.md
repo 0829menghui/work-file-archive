@@ -134,22 +134,6 @@
 - 文件存储：服务器本地磁盘目录
 - 部署建议：`Docker Compose + Nginx`
 
-## 仓库与部署
-
-- GitHub 仓库：`https://github.com/0829menghui/work-file-archive.git`
-- 线上地址：`http://124.223.78.223/work-file-archive/`
-- 服务器：`ubuntu@124.223.78.223`
-
-如果后面要继续更新线上版本，优先看 [GIT_DEPLOY.md](./GIT_DEPLOY.md)。
-
-如果要查看业务使用说明，优先看 [USER_GUIDE.md](./USER_GUIDE.md)。
-
-常用一键发布命令：
-
-```bash
-bash upload_deploy_restart.sh "更新说明"
-```
-
 ## 数据存储
 
 本地开发时：
@@ -272,3 +256,22 @@ data/storage/
 - 自动备份和恢复命令。
 - 线上部署脚本。
 - 数据库从 SQLite 升级到 PostgreSQL。
+
+## 项目文档
+
+项目相关文档都放在当前项目目录下：
+
+- [USER_GUIDE.md](./USER_GUIDE.md): 业务使用说明。
+- [GIT_DEPLOY.md](./GIT_DEPLOY.md): Git 上传与服务器部署说明。
+
+仓库与线上地址：
+
+- GitHub 仓库：`https://github.com/0829menghui/work-file-archive.git`
+- 线上地址：`http://124.223.78.223/work-file-archive/`
+- 服务器：`ubuntu@124.223.78.223`
+
+常用一键发布命令：
+
+```bash
+bash upload_deploy_restart.sh "更新说明"
+```
