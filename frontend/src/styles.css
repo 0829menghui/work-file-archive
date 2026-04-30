@@ -1683,6 +1683,39 @@ textarea:focus-visible {
   background: #ffffff;
 }
 
+.admin-permission-admin-note {
+  min-height: 48px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  padding: 8px 10px;
+  border: 1px solid #dce7ed;
+  border-radius: 8px;
+  background: #f3f8fa;
+}
+
+.admin-permission-admin-note strong {
+  color: var(--accent);
+}
+
+.admin-permission-admin-note span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-permission-admin-note button {
+  justify-self: start;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: #e1edf2;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .admin-create .module-checks,
 .admin-create button {
   grid-column: 1 / -1;

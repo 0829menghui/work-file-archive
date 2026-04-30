@@ -2381,30 +2381,48 @@ function App() {
                     <span key={module.key}>{module.name}</span>
                   ))}
                 </div>
-                {adminData.users.map((item) => (
-                  <div className={`admin-permission-row ${item.is_active ? "" : "inactive"}`} key={item.id}>
-                    <div className="admin-permission-user">
-                      <strong>{item.display_name}</strong>
-                      <span>
-                        @{item.username} · {item.role === "admin" ? "管理员" : item.is_active ? "普通用户" : "已停用"}
-                      </span>
+                {adminData.users.map((item) => {
+                  const isSelf = item.id === auth.user.id;
+                  return (
+                    <div className={`admin-permission-row ${item.is_active ? "" : "inactive"}`} key={item.id}>
+                      <div className="admin-permission-user">
+                        <strong>{item.display_name}</strong>
+                        <span>
+                          @{item.username} · {item.role === "admin" ? "管理员" : item.is_active ? "普通用户" : "已停用"}
+                        </span>
+                      </div>
+                      {adminData.modules.map((module) => (
+                        <div className="admin-permission-cell" key={module.key}>
+                          <span>{module.name}</span>
+                          {item.role === "admin" ? (
+                            <div className="admin-permission-admin-note">
+                              <strong>管理</strong>
+                              <span>管理员默认拥有全部模块权限</span>
+                              {!isSelf ? (
+                                <button
+                                  type="button"
+                                  onClick={() => updateUser(item, { role: "user" }, "已转为普通用户，可以单独授权")}
+                                >
+                                  转普通用户后授权
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <select
+                              value={item.modules?.[module.key] || "none"}
+                              disabled={!item.is_active}
+                              onChange={(event) => updateUserModules(item, module.key, event.target.value)}
+                            >
+                              {Object.entries(MODULE_ACCESS_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {adminData.modules.map((module) => (
-                      <label className="admin-permission-cell" key={module.key}>
-                        <span>{module.name}</span>
-                        <select
-                          value={item.role === "admin" ? "manage" : item.modules?.[module.key] || "none"}
-                          disabled={item.role === "admin" || !item.is_active}
-                          onChange={(event) => updateUserModules(item, module.key, event.target.value)}
-                        >
-                          {Object.entries(MODULE_ACCESS_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
             <div className="admin-user-list">
