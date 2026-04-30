@@ -134,6 +134,14 @@
 - 文件存储：服务器本地磁盘目录
 - 部署建议：`Docker Compose + Nginx`
 
+## 仓库与部署
+
+- GitHub 仓库：`https://github.com/0829menghui/work-file-archive.git`
+- 线上地址：`http://124.223.78.223/work-file-archive/`
+- 服务器：`ubuntu@124.223.78.223`
+
+如果后面要继续更新线上版本，优先看 [GIT_DEPLOY.md](./GIT_DEPLOY.md)。
+
 ## 数据存储
 
 本地开发时：
