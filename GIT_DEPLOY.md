@@ -291,3 +291,54 @@ DEFAULT_ADMIN_PASSWORD=请改成强密码
 ```bash
 tar -czf work-file-archive-data-$(date +%Y%m%d).tar.gz /opt/work-file-archive/backend/data
 ```
+
+## 你现在最推荐的用法
+
+对你当前这个项目，我建议固定成这套：
+
+1. 本地改完代码后执行一键发布脚本
+2. 脚本自动推送 GitHub
+3. 脚本自动触发服务器部署
+4. 服务器自动构建前端并重启后端服务和 nginx
+
+如果你只想记一条，那就记这个：
+
+```bash
+cd /Users/zmd/work/work-file-archive
+bash upload_deploy_restart.sh "feat: 你的更新说明"
+```
+
+它会一次性完成：
+
+1. 本地 `git add`
+2. 本地 `git commit`
+3. 本地 `git push`
+4. 上传当前分支 bundle 到服务器
+5. 服务器执行 `deploy.sh`
+6. 重启 `work-file-archive` 和 `nginx`
+
+## 你日常就用这三条（一键版）
+
+### 1. 本地一键上传并触发服务器部署
+
+```bash
+cd /Users/zmd/work/work-file-archive
+bash upload_deploy_restart.sh "feat: 你的更新说明"
+```
+
+### 2. 服务器一键拉取并重启
+
+```bash
+ssh ubuntu@124.223.78.223 "cd /opt/work-file-archive && bash deploy.sh"
+```
+
+### 3. 本地一键重启服务器服务
+
+```bash
+cd /Users/zmd/work/work-file-archive
+bash restart_server.sh
+```
+
+`upload_deploy_restart.sh` 负责本地 `git add`、`git commit`、`git push`，并远程触发 `deploy.sh`。  
+`deploy.sh` 负责服务器 `git fetch + reset --hard`、安装依赖、构建前端和重启服务。  
+`restart_server.sh` 负责只重启服务器上的 `work-file-archive` 和 `nginx`。
