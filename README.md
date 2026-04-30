@@ -144,6 +144,12 @@
 
 如果要查看业务使用说明，优先看 [USER_GUIDE.md](./USER_GUIDE.md)。
 
+常用一键发布命令：
+
+```bash
+bash upload_deploy_restart.sh "更新说明"
+```
+
 ## 数据存储
 
 本地开发时：

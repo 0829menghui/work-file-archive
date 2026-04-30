@@ -221,6 +221,32 @@ bash deploy.sh
 
 - [deploy.sh](./deploy.sh): 放在服务器项目根目录执行，负责 `git fetch + reset --hard + 安装依赖 + build + 重启服务`
 - [publish.sh](./publish.sh): 在本地执行，负责 `git commit + git push + 远程触发 deploy.sh`
+- [upload_deploy_restart.sh](./upload_deploy_restart.sh): 本地一键上传、部署并重启服务，内部调用 `publish.sh`
+- [restart_server.sh](./restart_server.sh): 本地一键重启服务器上的后端服务和 nginx
+
+### 一键上传、部署、重启
+
+本地执行：
+
+```bash
+cd /Users/zmd/work/work-file-archive
+bash upload_deploy_restart.sh "feat: 更新说明"
+```
+
+等价于执行：
+
+```bash
+bash publish.sh "feat: 更新说明"
+```
+
+### 只重启服务器服务
+
+如果代码没有变化，只想重启服务：
+
+```bash
+cd /Users/zmd/work/work-file-archive
+bash restart_server.sh
+```
 
 ### `publish.sh` 默认配置
 

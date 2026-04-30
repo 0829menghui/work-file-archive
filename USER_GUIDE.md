@@ -142,7 +142,7 @@ GIT_DEPLOY.md
 
 ```bash
 cd /Users/zmd/work/work-file-archive
-bash publish.sh "更新说明"
+bash upload_deploy_restart.sh "更新说明"
 ```
 
 不要把本项目文档放到 `requirement-archive` 目录里。
