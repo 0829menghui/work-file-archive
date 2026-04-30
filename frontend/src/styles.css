@@ -1524,7 +1524,8 @@ textarea:focus-visible {
 }
 
 .admin-create select,
-.admin-create input {
+.admin-create input,
+.admin-user-controls select {
   min-height: 36px;
   border: 1px solid #ccd8e1;
   border-radius: 8px;
@@ -1586,15 +1587,88 @@ textarea:focus-visible {
 
 .admin-user-row {
   display: grid;
-  grid-template-columns: minmax(180px, 260px) 1fr;
+  grid-template-columns: minmax(200px, 260px) minmax(320px, 1fr);
   gap: 16px;
-  align-items: center;
+  align-items: start;
   padding: 14px 16px;
 }
 
-.admin-user-row div:first-child {
+.admin-user-row.inactive {
+  background: #f8fafb;
+  opacity: 0.72;
+}
+
+.admin-user-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-user-summary > div:first-child {
   display: grid;
   gap: 4px;
+}
+
+.admin-user-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-user-badges span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #edf5f7;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.admin-user-controls {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-user-controls label {
+  display: grid;
+  gap: 5px;
+  min-width: 112px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-user-controls button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #eaf1f5;
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-user-controls button:hover {
+  background: #dfeaf0;
+}
+
+.admin-user-controls button:disabled {
+  color: #97a4ae;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.admin-user-controls .danger-text-button {
+  background: #fff0f0;
+  color: #b33a3a;
+}
+
+.admin-user-controls .danger-text-button:hover {
+  background: #ffe3e3;
+}
+
+.admin-module-permissions {
+  grid-column: 2;
 }
 
 .file-pane,
@@ -2161,6 +2235,10 @@ textarea:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 
+  .admin-module-permissions {
+    grid-column: 1 / -1;
+  }
+
   .learning-workspace {
     grid-template-columns: 1fr;
   }
@@ -2211,6 +2289,10 @@ textarea:focus-visible {
   .admin-create,
   .admin-user-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-module-permissions {
+    grid-column: 1;
   }
 
   .learning-editor-head {

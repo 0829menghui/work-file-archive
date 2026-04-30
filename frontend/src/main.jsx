@@ -1358,6 +1358,53 @@ function App() {
     }
   }
 
+  async function updateUser(targetUser, patch, successMessage = "用户已更新") {
+    try {
+      await apiFetch(
+        `/admin/users/${targetUser.id}`,
+        { method: "PATCH", body: JSON.stringify(patch) },
+        token
+      );
+      await loadAdminData();
+      setMessage(successMessage);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  function renameUser(targetUser, field) {
+    const label = field === "username" ? "用户名" : "显示名";
+    const nextValue = window.prompt(`请输入新的${label}`, targetUser[field] || "");
+    if (nextValue === null) return;
+    const value = nextValue.trim();
+    if (!value) {
+      setMessage(`${label}不能为空`);
+      return;
+    }
+    updateUser(targetUser, { [field]: value }, `${label}已更新`);
+  }
+
+  function resetUserPassword(targetUser) {
+    const password = window.prompt(`请输入 ${targetUser.display_name} 的新密码`);
+    if (password === null) return;
+    if (password.trim().length < 4) {
+      setMessage("密码至少 4 位");
+      return;
+    }
+    updateUser(targetUser, { password }, "密码已重置");
+  }
+
+  async function deleteUser(targetUser) {
+    if (!window.confirm(`确定删除账号 ${targetUser.display_name} 吗？删除后该账号将无法登录。`)) return;
+    try {
+      await apiFetch(`/admin/users/${targetUser.id}`, { method: "DELETE" }, token);
+      await loadAdminData();
+      setMessage("账号已删除");
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   function logout() {
     localStorage.removeItem("work-file-archive-auth");
     setAuth(null);
@@ -2243,30 +2290,80 @@ function App() {
               </button>
             </form>
             <div className="admin-user-list">
-              {adminData.users.map((item) => (
-                <div className="admin-user-row" key={item.id}>
-                  <div>
-                    <strong>{item.display_name}</strong>
-                    <span>{item.username} · {item.role === "admin" ? "管理员" : "普通用户"}</span>
-                  </div>
-                  <div className="module-checks">
-                    {adminData.modules.map((module) => (
-                      <label className="permission-select" key={module.key}>
-                        <span>{module.name}</span>
+              {adminData.users.map((item) => {
+                const isSelf = item.id === auth.user.id;
+                return (
+                  <div className={`admin-user-row ${item.is_active ? "" : "inactive"}`} key={item.id}>
+                    <div className="admin-user-summary">
+                      <div>
+                        <strong>{item.display_name}</strong>
+                        <span>@{item.username}</span>
+                      </div>
+                      <div className="admin-user-badges">
+                        <span>{item.role === "admin" ? "管理员" : "普通用户"}</span>
+                        <span>{item.is_active ? "启用中" : "已停用"}</span>
+                      </div>
+                    </div>
+
+                    <div className="admin-user-controls">
+                      <label>
+                        <span>角色</span>
                         <select
-                          value={item.role === "admin" ? "manage" : item.modules?.[module.key] || "none"}
-                          disabled={item.role === "admin"}
-                          onChange={(event) => updateUserModules(item, module.key, event.target.value)}
+                          value={item.role}
+                          disabled={isSelf}
+                          onChange={(event) => updateUser(item, { role: event.target.value }, "角色已更新")}
                         >
-                          {Object.entries(MODULE_ACCESS_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                          ))}
+                          <option value="user">普通用户</option>
+                          <option value="admin">管理员</option>
                         </select>
                       </label>
-                    ))}
+                      <label>
+                        <span>状态</span>
+                        <select
+                          value={item.is_active ? "active" : "inactive"}
+                          disabled={isSelf}
+                          onChange={(event) => updateUser(
+                            item,
+                            { is_active: event.target.value === "active" },
+                            "状态已更新"
+                          )}
+                        >
+                          <option value="active">启用</option>
+                          <option value="inactive">停用</option>
+                        </select>
+                      </label>
+                      <button type="button" onClick={() => renameUser(item, "display_name")}>改显示名</button>
+                      <button type="button" onClick={() => renameUser(item, "username")}>改用户名</button>
+                      <button type="button" onClick={() => resetUserPassword(item)}>重置密码</button>
+                      <button
+                        type="button"
+                        className="danger-text-button"
+                        disabled={isSelf || !item.is_active}
+                        onClick={() => deleteUser(item)}
+                      >
+                        删除
+                      </button>
+                    </div>
+
+                    <div className="module-checks admin-module-permissions">
+                      {adminData.modules.map((module) => (
+                        <label className="permission-select" key={module.key}>
+                          <span>{module.name}</span>
+                          <select
+                            value={item.role === "admin" ? "manage" : item.modules?.[module.key] || "none"}
+                            disabled={item.role === "admin" || !item.is_active}
+                            onChange={(event) => updateUserModules(item, module.key, event.target.value)}
+                          >
+                            {Object.entries(MODULE_ACCESS_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         ) : null}

@@ -71,6 +71,48 @@ def require_admin(user: dict = Depends(require_user)) -> dict:
 MODULE_ACCESS_RANK = {"none": 0, "read": 1, "edit": 2, "manage": 3}
 
 
+def apply_user_module_permissions(
+    conn,
+    target_user_id: int,
+    module_permissions: dict,
+    module_keys: set[str],
+    now: str,
+) -> None:
+    modules = conn.execute("SELECT key FROM modules").fetchall()
+    for module in modules:
+        access_level = module_permissions.get(module["key"])
+        if access_level is None:
+            access_level = "edit" if module["key"] in module_keys else "none"
+        if access_level not in MODULE_ACCESS_RANK:
+            access_level = "none"
+        conn.execute(
+            """
+            INSERT INTO user_module_permissions (user_id, module_key, can_view, access_level, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, module_key) DO UPDATE SET
+                can_view = excluded.can_view,
+                access_level = excluded.access_level,
+                updated_at = excluded.updated_at
+            """,
+            (target_user_id, module["key"], 0 if access_level == "none" else 1, access_level, now, now),
+        )
+
+
+def ensure_not_last_active_admin(conn, target_user_id: int, target_role: str) -> None:
+    if target_role != "admin":
+        return
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM users
+        WHERE role = 'admin' AND is_active = 1 AND id != ?
+        """,
+        (target_user_id,),
+    ).fetchone()
+    if row["count"] <= 0:
+        raise HTTPException(status_code=400, detail="至少保留一个启用的管理员")
+
+
 def get_module_access_level(conn, user: dict, module_key: str) -> str:
     if user["role"] == "admin":
         return "manage"
@@ -370,25 +412,104 @@ def admin_update_user_modules(
         target = conn.execute("SELECT * FROM users WHERE id = ?", (target_user_id,)).fetchone()
         if not target:
             raise HTTPException(status_code=404, detail="用户不存在")
-        modules = conn.execute("SELECT key FROM modules").fetchall()
-        for module in modules:
-            access_level = module_permissions.get(module["key"])
-            if access_level is None:
-                access_level = "edit" if module["key"] in module_keys else "none"
-            if access_level not in MODULE_ACCESS_RANK:
-                access_level = "none"
-            conn.execute(
-                """
-                INSERT INTO user_module_permissions (user_id, module_key, can_view, access_level, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, module_key) DO UPDATE SET
-                    can_view = excluded.can_view,
-                    access_level = excluded.access_level,
-                    updated_at = excluded.updated_at
-                """,
-                (target_user_id, module["key"], 0 if access_level == "none" else 1, access_level, now, now),
-            )
+        apply_user_module_permissions(conn, target_user_id, module_permissions, module_keys, now)
         log_action(conn, user["id"], "update_user_modules", "user", target_user_id, str(module_permissions or sorted(module_keys)))
+    return {"ok": True}
+
+
+@app.patch("/api/admin/users/{target_user_id}")
+def admin_update_user(
+    target_user_id: int,
+    payload: dict,
+    user: dict = Depends(require_admin),
+) -> dict:
+    now = utc_now()
+    with get_db() as conn:
+        target = conn.execute("SELECT * FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="用户不存在")
+
+        next_role = (payload.get("role") or target["role"]).strip()
+        if next_role not in ("admin", "user"):
+            raise HTTPException(status_code=400, detail="角色不正确")
+
+        next_active = bool(target["is_active"])
+        if "is_active" in payload:
+            next_active = bool(payload.get("is_active"))
+
+        if target_user_id == user["id"]:
+            if next_role != "admin":
+                raise HTTPException(status_code=400, detail="不能取消自己的管理员权限")
+            if not next_active:
+                raise HTTPException(status_code=400, detail="不能停用当前登录账号")
+
+        if (target["role"] == "admin" and next_role != "admin") or (target["role"] == "admin" and not next_active):
+            ensure_not_last_active_admin(conn, target_user_id, target["role"])
+
+        updates = ["updated_at = ?"]
+        values: list = [now]
+
+        if "username" in payload:
+            username = (payload.get("username") or "").strip()
+            if not username:
+                raise HTTPException(status_code=400, detail="用户名不能为空")
+            updates.append("username = ?")
+            values.append(username)
+        if "display_name" in payload:
+            display_name = (payload.get("display_name") or "").strip()
+            if not display_name:
+                raise HTTPException(status_code=400, detail="显示名不能为空")
+            updates.append("display_name = ?")
+            values.append(display_name)
+        if "role" in payload:
+            updates.append("role = ?")
+            values.append(next_role)
+        if "is_active" in payload:
+            updates.append("is_active = ?")
+            values.append(1 if next_active else 0)
+        if payload.get("password"):
+            password = str(payload.get("password"))
+            if len(password) < 4:
+                raise HTTPException(status_code=400, detail="密码至少 4 位")
+            updates.append("password_hash = ?")
+            values.append(hash_password(password))
+
+        values.append(target_user_id)
+        try:
+            conn.execute(
+                f"UPDATE users SET {', '.join(updates)} WHERE id = ?",
+                tuple(values),
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="用户名已存在") from exc
+
+        if "module_permissions" in payload or "module_keys" in payload:
+            apply_user_module_permissions(
+                conn,
+                target_user_id,
+                payload.get("module_permissions") or {},
+                set(payload.get("module_keys") or []),
+                now,
+            )
+        log_action(conn, user["id"], "update_user", "user", target_user_id, str(payload.keys()))
+    return {"ok": True}
+
+
+@app.delete("/api/admin/users/{target_user_id}")
+def admin_delete_user(target_user_id: int, user: dict = Depends(require_admin)) -> dict:
+    if target_user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="不能删除当前登录账号")
+    now = utc_now()
+    with get_db() as conn:
+        target = conn.execute("SELECT * FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        ensure_not_last_active_admin(conn, target_user_id, target["role"])
+        conn.execute(
+            "UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?",
+            (now, target_user_id),
+        )
+        log_action(conn, user["id"], "delete_user", "user", target_user_id, target["username"])
     return {"ok": True}
 
 
