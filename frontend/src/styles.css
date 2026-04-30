@@ -1613,6 +1613,76 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+.admin-permission-manager {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-permission-table {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-permission-head,
+.admin-permission-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) repeat(var(--module-count, 2), minmax(150px, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-permission-head {
+  padding: 0 10px 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-permission-row {
+  padding: 10px;
+  border: 1px solid #dce7ed;
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.admin-permission-row.inactive {
+  opacity: 0.68;
+  background: #f8fafb;
+}
+
+.admin-permission-user {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-permission-user span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-permission-cell {
+  display: grid;
+  gap: 5px;
+}
+
+.admin-permission-cell > span {
+  display: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-permission-cell select {
+  min-height: 36px;
+  border: 1px solid #ccd8e1;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: #ffffff;
+}
+
 .admin-create .module-checks,
 .admin-create button {
   grid-column: 1 / -1;
@@ -1732,10 +1802,6 @@ textarea:focus-visible {
 
 .admin-user-controls .danger-text-button:hover {
   background: #ffe3e3;
-}
-
-.admin-module-permissions {
-  grid-column: 2;
 }
 
 .file-pane,
@@ -2298,13 +2364,23 @@ textarea:focus-visible {
   .learning-workspace,
   .learning-editor-meta,
   .admin-module-grid,
+  .admin-permission-head,
+  .admin-permission-row,
   .admin-create,
   .admin-user-row {
     grid-template-columns: 1fr 1fr;
   }
 
-  .admin-module-permissions {
+  .admin-permission-head {
+    display: none;
+  }
+
+  .admin-permission-user {
     grid-column: 1 / -1;
+  }
+
+  .admin-permission-cell > span {
+    display: block;
   }
 
   .learning-workspace {
@@ -2355,13 +2431,22 @@ textarea:focus-visible {
   .learning-workspace,
   .learning-editor-meta,
   .admin-module-grid,
+  .admin-permission-row,
   .admin-create,
   .admin-user-row {
     grid-template-columns: 1fr;
   }
 
-  .admin-module-permissions {
+  .admin-permission-head {
+    display: none;
+  }
+
+  .admin-permission-user {
     grid-column: 1;
+  }
+
+  .admin-permission-cell > span {
+    display: block;
   }
 
   .learning-editor-head {

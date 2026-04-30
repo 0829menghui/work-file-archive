@@ -1362,6 +1362,7 @@ function App() {
         token
       );
       await loadAdminData();
+      setMessage("模块权限已更新");
     } catch (err) {
       showError(err);
     }
@@ -2365,7 +2366,52 @@ function App() {
                 创建用户
               </button>
             </form>
+            <section className="admin-permission-manager">
+              <div className="admin-section-title">
+                <strong>用户模块权限</strong>
+                <span>修改已经创建的用户对每个模块的访问级别</span>
+              </div>
+              <div
+                className="admin-permission-table"
+                style={{ "--module-count": adminData.modules.length || 1 }}
+              >
+                <div className="admin-permission-head">
+                  <span>用户</span>
+                  {adminData.modules.map((module) => (
+                    <span key={module.key}>{module.name}</span>
+                  ))}
+                </div>
+                {adminData.users.map((item) => (
+                  <div className={`admin-permission-row ${item.is_active ? "" : "inactive"}`} key={item.id}>
+                    <div className="admin-permission-user">
+                      <strong>{item.display_name}</strong>
+                      <span>
+                        @{item.username} · {item.role === "admin" ? "管理员" : item.is_active ? "普通用户" : "已停用"}
+                      </span>
+                    </div>
+                    {adminData.modules.map((module) => (
+                      <label className="admin-permission-cell" key={module.key}>
+                        <span>{module.name}</span>
+                        <select
+                          value={item.role === "admin" ? "manage" : item.modules?.[module.key] || "none"}
+                          disabled={item.role === "admin" || !item.is_active}
+                          onChange={(event) => updateUserModules(item, module.key, event.target.value)}
+                        >
+                          {Object.entries(MODULE_ACCESS_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
             <div className="admin-user-list">
+              <div className="admin-section-title">
+                <strong>账号管理</strong>
+                <span>修改账号资料、角色、状态和密码</span>
+              </div>
               {adminData.users.map((item) => {
                 const isSelf = item.id === auth.user.id;
                 return (
@@ -2419,23 +2465,6 @@ function App() {
                       >
                         删除
                       </button>
-                    </div>
-
-                    <div className="module-checks admin-module-permissions">
-                      {adminData.modules.map((module) => (
-                        <label className="permission-select" key={module.key}>
-                          <span>{module.name}</span>
-                          <select
-                            value={item.role === "admin" ? "manage" : item.modules?.[module.key] || "none"}
-                            disabled={item.role === "admin" || !item.is_active}
-                            onChange={(event) => updateUserModules(item, module.key, event.target.value)}
-                          >
-                            {Object.entries(MODULE_ACCESS_LABELS).map(([value, label]) => (
-                              <option key={value} value={value}>{label}</option>
-                            ))}
-                          </select>
-                        </label>
-                      ))}
                     </div>
                   </div>
                 );
