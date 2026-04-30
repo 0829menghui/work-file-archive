@@ -142,6 +142,8 @@
 
 如果后面要继续更新线上版本，优先看 [GIT_DEPLOY.md](./GIT_DEPLOY.md)。
 
+如果要查看业务使用说明，优先看 [USER_GUIDE.md](./USER_GUIDE.md)。
+
 ## 数据存储
 
 本地开发时：
