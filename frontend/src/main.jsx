@@ -3102,16 +3102,16 @@ function App() {
                                 添加
                               </button>
                             </div>
-                            {learningTags.length ? (
-                              <div className="learning-tag-suggestions">
-                                {learningTags
-                                  .filter((tag) => !currentLearningTags.includes(tag))
-                                  .slice(0, 12)
-                                  .map((tag) => (
-                                    <button key={`quick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
+                            {filteredLearningTagSuggestions.length ? (
+                              <div className="learning-tag-picker">
+                                <span>可选标签</span>
+                                <div className="learning-tag-suggestions">
+                                  {filteredLearningTagSuggestions.map((tag) => (
+                                    <button key={`pick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
                                       #{tag}
                                     </button>
                                   ))}
+                                </div>
                               </div>
                             ) : null}
                           </div>
