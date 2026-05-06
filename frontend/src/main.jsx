@@ -2826,16 +2826,20 @@ function App() {
                     <div className="learning-editor-head">
                       <div className="learning-editor-title-wrap">
                         <span className="learning-editor-kicker">文档编辑</span>
-                        <input
-                          ref={learningTitleRef}
-                          className="learning-editor-title"
-                          value={learningDraft.title}
-                          readOnly={!showLearningEditor}
-                          placeholder="输入文档标题"
-                          onChange={(event) =>
-                            setLearningDraft((current) => ({ ...current, title: event.target.value }))
-                          }
-                        />
+                        {showLearningEditor ? (
+                          <input
+                            ref={learningTitleRef}
+                            className="learning-editor-title"
+                            value={learningDraft.title}
+                            readOnly={!showLearningEditor}
+                            placeholder="输入文档标题"
+                            onChange={(event) =>
+                              setLearningDraft((current) => ({ ...current, title: event.target.value }))
+                            }
+                          />
+                        ) : (
+                          <div className="learning-read-title">{learningDraft.title || "未命名文档"}</div>
+                        )}
                         <span className="learning-editor-meta-line">
                           最后更新 {selectedLearningItem.updated_at?.slice(0, 10) || "-"}
                           {learningDraftDirty ? " · 未保存" : ""}
@@ -2917,116 +2921,141 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="learning-editor-meta">
-                      <label>
-                        <span>分类</span>
-                        <input
-                          value={learningDraft.category}
-                          readOnly={!showLearningEditor}
-                          onChange={(event) =>
-                            setLearningDraft((current) => ({ ...current, category: event.target.value }))
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>状态</span>
-                        <select
-                          value={learningDraft.status}
-                          disabled={!showLearningEditor}
-                          onChange={(event) =>
-                            setLearningDraft((current) => ({ ...current, status: event.target.value }))
-                          }
-                        >
-                          <option>计划中</option>
-                          <option>进行中</option>
-                          <option>已完成</option>
-                          <option>暂停</option>
-                        </select>
-                      </label>
-                      <label>
-                        <span>优先级</span>
-                        <select
-                          value={learningDraft.priority}
-                          disabled={!showLearningEditor}
-                          onChange={(event) =>
-                            setLearningDraft((current) => ({ ...current, priority: event.target.value }))
-                          }
-                        >
-                          <option>高</option>
-                          <option>中</option>
-                          <option>低</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label className="learning-link-field">
-                      <span>资料链接</span>
-                      <input
-                        value={learningDraft.resource_url}
-                        readOnly={!showLearningEditor}
-                        placeholder="课程、文档、飞书、语雀、GitHub、博客地址"
-                        onChange={(event) =>
-                          setLearningDraft((current) => ({ ...current, resource_url: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label className="learning-link-field">
-                      <span>标签</span>
-                      {showLearningEditor ? (
-                        <div className="learning-tag-editor">
-                          <div className="learning-tag-display">
-                            {currentLearningTags.length ? (
-                              currentLearningTags.map((tag) => (
-                                <button
-                                  key={tag}
-                                  type="button"
-                                  className="learning-tag-chip removable"
-                                  onClick={() => removeLearningTag(tag)}
-                                  title={`移除标签 ${tag}`}
-                                >
-                                  #{tag}
-                                  <span>×</span>
-                                </button>
-                              ))
-                            ) : (
-                              <span className="learning-tag-empty">未设置标签</span>
-                            )}
+                    {showLearningEditor ? (
+                      <>
+                        <div className="learning-editor-meta">
+                          <label>
+                            <span>分类</span>
                             <input
-                              className="learning-tag-input"
-                              value={learningTagInput}
-                              placeholder="输入标签后回车"
-                              onChange={(event) => setLearningTagInput(event.target.value)}
-                              onKeyDown={handleLearningTagInputKeyDown}
+                              value={learningDraft.category}
+                              readOnly={!showLearningEditor}
+                              onChange={(event) =>
+                                setLearningDraft((current) => ({ ...current, category: event.target.value }))
+                              }
                             />
-                            <button type="button" className="learning-tag-add" onClick={() => addLearningTag(learningTagInput)}>
-                              添加
-                            </button>
-                          </div>
-                          {learningTags.length ? (
-                            <div className="learning-tag-suggestions">
-                              {learningTags
-                                .filter((tag) => !currentLearningTags.includes(tag))
-                                .slice(0, 12)
-                                .map((tag) => (
-                                  <button key={`quick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
+                          </label>
+                          <label>
+                            <span>状态</span>
+                            <select
+                              value={learningDraft.status}
+                              disabled={!showLearningEditor}
+                              onChange={(event) =>
+                                setLearningDraft((current) => ({ ...current, status: event.target.value }))
+                              }
+                            >
+                              <option>计划中</option>
+                              <option>进行中</option>
+                              <option>已完成</option>
+                              <option>暂停</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>优先级</span>
+                            <select
+                              value={learningDraft.priority}
+                              disabled={!showLearningEditor}
+                              onChange={(event) =>
+                                setLearningDraft((current) => ({ ...current, priority: event.target.value }))
+                              }
+                            >
+                              <option>高</option>
+                              <option>中</option>
+                              <option>低</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <label className="learning-link-field">
+                          <span>资料链接</span>
+                          <input
+                            value={learningDraft.resource_url}
+                            readOnly={!showLearningEditor}
+                            placeholder="课程、文档、飞书、语雀、GitHub、博客地址"
+                            onChange={(event) =>
+                              setLearningDraft((current) => ({ ...current, resource_url: event.target.value }))
+                            }
+                          />
+                        </label>
+                        <label className="learning-link-field">
+                          <span>标签</span>
+                          <div className="learning-tag-editor">
+                            <div className="learning-tag-display">
+                              {currentLearningTags.length ? (
+                                currentLearningTags.map((tag) => (
+                                  <button
+                                    key={tag}
+                                    type="button"
+                                    className="learning-tag-chip removable"
+                                    onClick={() => removeLearningTag(tag)}
+                                    title={`移除标签 ${tag}`}
+                                  >
                                     #{tag}
+                                    <span>×</span>
                                   </button>
-                                ))}
+                                ))
+                              ) : (
+                                <span className="learning-tag-empty">未设置标签</span>
+                              )}
+                              <input
+                                className="learning-tag-input"
+                                value={learningTagInput}
+                                placeholder="输入标签后回车"
+                                onChange={(event) => setLearningTagInput(event.target.value)}
+                                onKeyDown={handleLearningTagInputKeyDown}
+                              />
+                              <button type="button" className="learning-tag-add" onClick={() => addLearningTag(learningTagInput)}>
+                                添加
+                              </button>
                             </div>
-                          ) : null}
+                            {learningTags.length ? (
+                              <div className="learning-tag-suggestions">
+                                {learningTags
+                                  .filter((tag) => !currentLearningTags.includes(tag))
+                                  .slice(0, 12)
+                                  .map((tag) => (
+                                    <button key={`quick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
+                                      #{tag}
+                                    </button>
+                                  ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </label>
+                      </>
+                    ) : (
+                      <div className="learning-read-summary">
+                        <div className="learning-read-meta">
+                          <span className="learning-read-pill">分类：{learningDraft.category || "未分类"}</span>
+                          <span className={`learning-read-pill status-${learningDraft.status || "计划中"}`}>状态：{learningDraft.status || "计划中"}</span>
+                          <span className="learning-read-pill">优先级：{learningDraft.priority || "中"}</span>
+                          {learningDraft.is_pinned ? <span className="learning-read-pill pinned">已置顶</span> : null}
                         </div>
-                      ) : (
-                        <div className={`learning-tag-display ${currentLearningTags.length ? "" : "empty"}`}>
-                          {currentLearningTags.length ? (
-                            currentLearningTags.map((tag) => (
-                              <span key={tag} className="learning-tag-chip">#{tag}</span>
-                            ))
-                          ) : (
-                            <span className="learning-tag-empty">未设置标签</span>
-                          )}
+                        <div className="learning-read-fields">
+                          <div className="learning-read-field">
+                            <span>资料链接</span>
+                            {learningDraft.resource_url ? (
+                              <a href={learningDraft.resource_url} target="_blank" rel="noreferrer">
+                                {learningDraft.resource_url}
+                              </a>
+                            ) : (
+                              <em>未设置资料链接</em>
+                            )}
+                          </div>
+                          <div className="learning-read-field">
+                            <span>标签</span>
+                            <div className={`learning-tag-display ${currentLearningTags.length ? "" : "empty"}`}>
+                              {currentLearningTags.length ? (
+                                currentLearningTags.map((tag) => (
+                                  <span key={tag} className="learning-tag-chip">#{tag}</span>
+                                ))
+                              ) : (
+                                <span className="learning-tag-empty">未设置标签</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </label>
+                      </div>
+                    )}
 
                     <div className="learning-editor-body">
                       <div className="learning-editor-main">

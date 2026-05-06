@@ -1502,6 +1502,15 @@ textarea:focus-visible {
   min-height: 48px;
 }
 
+.learning-read-title {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text);
+}
+
 .learning-editor-title[readonly],
 .learning-link-field input[readonly],
 .learning-editor-meta input[readonly],
@@ -1583,6 +1592,63 @@ textarea:focus-visible {
 .learning-editor-body {
   display: grid;
   gap: 8px;
+}
+
+.learning-read-summary {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e1e8ed;
+  border-radius: 12px;
+  background: #fbfdfe;
+}
+
+.learning-read-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.learning-read-pill {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: #edf4f7;
+  color: #2f6574;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.learning-read-pill.pinned {
+  background: #fff4da;
+  color: #8a6512;
+}
+
+.learning-read-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.learning-read-field {
+  display: grid;
+  gap: 6px;
+}
+
+.learning-read-field > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.learning-read-field > a {
+  color: var(--accent-strong);
+  word-break: break-all;
+}
+
+.learning-read-field > em {
+  color: var(--muted);
+  font-style: normal;
 }
 
 .learning-editor-meta span,
@@ -1785,6 +1851,11 @@ textarea:focus-visible {
   cursor: text;
 }
 
+.learning-content-card-preview.click-to-edit:hover {
+  border-color: #c7dbe2;
+  box-shadow: 0 8px 22px rgba(27, 49, 64, 0.05);
+}
+
 .learning-content-card-head {
   min-height: 28px;
   display: flex;
@@ -1968,6 +2039,10 @@ textarea:focus-visible {
   padding: 0 0 2px;
   background: transparent;
   text-align: left;
+}
+
+.learning-version-panel:not(:has(.learning-version-list)) {
+  gap: 0;
 }
 
 .learning-version-panel-head span {
