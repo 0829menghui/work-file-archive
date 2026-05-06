@@ -449,6 +449,8 @@ function renderLearningContent(content) {
   let paragraph = [];
   let list = [];
   let code = [];
+  let codeLanguage = "";
+  let table = [];
   let inCode = false;
 
   const flushParagraph = () => {
@@ -465,11 +467,39 @@ function renderLearningContent(content) {
     elements.push(
       <ul key={`ul-${elements.length}`}>
         {list.map((item, index) => (
-          <li key={`${item}-${index}`}>{renderInlineText(item)}</li>
+          <li key={`${item.text}-${index}`} className={item.checked !== null ? "todo-item" : ""}>
+            {item.checked !== null ? <input type="checkbox" checked={item.checked} readOnly /> : null}
+            <span>{renderInlineText(item.text)}</span>
+          </li>
         ))}
       </ul>
     );
     list = [];
+  };
+  const flushTable = () => {
+    if (!table.length) return;
+    const [head, ...body] = table;
+    elements.push(
+      <div className="learning-table-wrap" key={`table-${elements.length}`}>
+        <table className="learning-markdown-table">
+          <thead>
+            <tr>
+              {head.map((cell, index) => <th key={`th-${index}`}>{renderInlineText(cell)}</th>)}
+            </tr>
+          </thead>
+          {body.length ? (
+            <tbody>
+              {body.map((row, rowIndex) => (
+                <tr key={`row-${rowIndex}`}>
+                  {row.map((cell, index) => <td key={`td-${rowIndex}-${index}`}>{renderInlineText(cell)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          ) : null}
+        </table>
+      </div>
+    );
+    table = [];
   };
 
   lines.forEach((rawLine) => {
@@ -477,13 +507,18 @@ function renderLearningContent(content) {
     if (line.trim().startsWith("```")) {
       if (inCode) {
         elements.push(
-          <pre key={`code-${elements.length}`}><code>{code.join("\n")}</code></pre>
+          <pre key={`code-${elements.length}`} className={codeLanguage === "sql" ? "sql-preview" : ""}>
+            <code>{codeLanguage === "sql" ? formatSql(code.join("\n")) : code.join("\n")}</code>
+          </pre>
         );
         code = [];
+        codeLanguage = "";
         inCode = false;
       } else {
         flushParagraph();
         flushList();
+        flushTable();
+        codeLanguage = line.trim().slice(3).trim().toLowerCase();
         inCode = true;
       }
       return;
@@ -495,38 +530,65 @@ function renderLearningContent(content) {
     if (!line.trim()) {
       flushParagraph();
       flushList();
+      flushTable();
       return;
     }
     const heading = line.match(/^(#{1,3})\s+(.+)$/);
     if (heading) {
       flushParagraph();
       flushList();
+      flushTable();
       const Tag = `h${Math.min(heading[1].length + 1, 4)}`;
       elements.push(<Tag key={`h-${elements.length}`}>{renderInlineText(heading[2])}</Tag>);
+      return;
+    }
+    const tableLine = line.match(/^\|(.+)\|$/);
+    if (tableLine) {
+      flushParagraph();
+      flushList();
+      const cells = line
+        .split("|")
+        .slice(1, -1)
+        .map((cell) => cell.trim());
+      if (!cells.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+        table.push(cells);
+      }
       return;
     }
     const bullet = line.match(/^[-*]\s+(.+)$/);
     if (bullet) {
       flushParagraph();
-      list.push(bullet[1]);
+      const todo = bullet[1].match(/^\[( |x|X)\]\s+(.+)$/);
+      if (todo) {
+        list.push({ checked: todo[1].toLowerCase() === "x", text: todo[2] });
+      } else {
+        list.push({ checked: null, text: bullet[1] });
+      }
       return;
     }
     const quote = line.match(/^>\s?(.+)$/);
     if (quote) {
       flushParagraph();
       flushList();
+      flushTable();
       elements.push(<blockquote key={`q-${elements.length}`}>{renderInlineText(quote[1])}</blockquote>);
       return;
     }
     flushList();
+    flushTable();
     paragraph.push(line.trim());
   });
 
   if (inCode) {
-    elements.push(<pre key={`code-${elements.length}`}><code>{code.join("\n")}</code></pre>);
+    elements.push(
+      <pre key={`code-${elements.length}`} className={codeLanguage === "sql" ? "sql-preview" : ""}>
+        <code>{codeLanguage === "sql" ? formatSql(code.join("\n")) : code.join("\n")}</code>
+      </pre>
+    );
   }
   flushParagraph();
   flushList();
+  flushTable();
 
   return elements.length ? elements : <p className="learning-preview-empty">正文预览</p>;
 }
@@ -568,6 +630,15 @@ function buildLearningDraft(item) {
     priority: item?.priority || "中",
     resource_url: item?.resource_url || "",
     content: item?.content || "",
+  };
+}
+
+function buildProjectDraft(item) {
+  return {
+    name: item?.name || "",
+    client_name: item?.client_name || "",
+    status: item?.status || "制作中",
+    description: item?.description || "",
   };
 }
 
@@ -619,6 +690,8 @@ function App() {
   const [detail, setDetail] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [previewError, setPreviewError] = useState("");
+  const [projectDraft, setProjectDraft] = useState(() => buildProjectDraft());
+  const [projectSaving, setProjectSaving] = useState(false);
   const [archiveSearch, setArchiveSearch] = useState({
     query: "",
     kind: "all",
@@ -627,6 +700,7 @@ function App() {
   const [message, setMessage] = useState("");
   const [trashOpen, setTrashOpen] = useState(false);
   const [trash, setTrash] = useState([]);
+  const [selectedTrashIds, setSelectedTrashIds] = useState([]);
   const [learningItems, setLearningItems] = useState([]);
   const [learningFilters, setLearningFilters] = useState({
     query: "",
@@ -639,6 +713,7 @@ function App() {
   const [learningDraft, setLearningDraft] = useState(() => buildLearningDraft());
   const [learningSaving, setLearningSaving] = useState(false);
   const [learningEditing, setLearningEditing] = useState(false);
+  const [learningVersions, setLearningVersions] = useState([]);
   const [learningViewMode, setLearningViewMode] = useState(() => {
     const raw = localStorage.getItem(LEARNING_VIEW_STORAGE_KEY);
     return raw === "split" ? "split" : "write";
@@ -665,6 +740,7 @@ function App() {
   const uploadRef = useRef(null);
   const folderUploadRef = useRef(null);
   const learningTitleRef = useRef(null);
+  const learningContentRef = useRef(null);
   const learningWorkspaceRef = useRef(null);
 
   const token = auth?.token;
@@ -736,6 +812,10 @@ function App() {
     return JSON.stringify(base) !== JSON.stringify(learningDraft);
   }, [selectedLearningItem, learningDraft]);
   const showLearningEditor = canEditActiveModule && learningEditing;
+  const projectDraftDirty = useMemo(() => {
+    if (!project) return false;
+    return JSON.stringify(buildProjectDraft(project)) !== JSON.stringify(projectDraft);
+  }, [project, projectDraft]);
   const learningStats = useMemo(() => {
     const docs = learningItems.filter((item) => item.item_type !== "folder");
     return {
@@ -860,12 +940,20 @@ function App() {
   }, [project?.id]);
 
   useEffect(() => {
+    setProjectDraft(buildProjectDraft(project));
+  }, [project?.id, project?.updated_at]);
+
+  useEffect(() => {
     if (activeFolder) loadItems(activeFolder.id);
   }, [activeFolder?.id]);
 
   useEffect(() => {
     setSelectedArchiveIds((current) => current.filter((id) => items.files.some((file) => file.id === id)));
   }, [items.files]);
+
+  useEffect(() => {
+    setSelectedTrashIds((current) => current.filter((id) => trash.some((file) => file.id === id)));
+  }, [trash]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -912,6 +1000,16 @@ function App() {
     return () => controller.abort();
   }, [detail?.file?.id, detail?.file?.extension, token]);
 
+  useEffect(() => {
+    if (!selectedLearningItem || selectedLearningItem.item_type !== "doc") {
+      setLearningVersions([]);
+      return;
+    }
+    apiFetch(`/learning/items/${selectedLearningItem.id}/versions`, {}, token)
+      .then(setLearningVersions)
+      .catch(showError);
+  }, [selectedLearningItem?.id, selectedLearningItem?.item_type, token]);
+
   function showError(err) {
     const text = err.message || String(err);
     setMessage(text === "没有访问该模块的权限" ? "当前账号没有访问该模块的权限" : text);
@@ -938,7 +1036,11 @@ function App() {
     try {
       const data = await apiFetch("/projects", {}, token);
       setProjects(data);
-      if (!project && data.length) setProject(data[0]);
+      setProject((current) => {
+        if (!data.length) return null;
+        if (!current) return data[0];
+        return data.find((item) => item.id === current.id) || data[0];
+      });
     } catch (err) {
       showError(err);
     }
@@ -1127,6 +1229,29 @@ function App() {
       await loadProjects();
     } catch (err) {
       showError(err);
+    }
+  }
+
+  async function saveProjectDraft() {
+    if (!canEditActiveModule || !project || !projectDraftDirty) return;
+    if (!projectDraft.name.trim()) {
+      setMessage("项目名称不能为空");
+      return;
+    }
+    try {
+      setProjectSaving(true);
+      await apiFetch(
+        `/projects/${project.id}`,
+        { method: "PATCH", body: JSON.stringify(projectDraft) },
+        token
+      );
+      await loadProjects();
+      setProject((current) => current ? { ...current, ...projectDraft } : current);
+      setMessage("项目资料已保存");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setProjectSaving(false);
     }
   }
 
@@ -1320,6 +1445,55 @@ function App() {
       await apiFetch(`/files/${file.id}/restore`, { method: "POST" }, token);
       await loadTrash();
       if (activeFolder) await loadItems(activeFolder.id);
+      await loadProjects();
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  function toggleTrashSelection(fileId) {
+    setSelectedTrashIds((current) =>
+      current.includes(fileId) ? current.filter((id) => id !== fileId) : [...current, fileId]
+    );
+  }
+
+  function toggleTrashSelectAll() {
+    const visibleIds = trash.map((file) => file.id);
+    if (!visibleIds.length) return;
+    setSelectedTrashIds((current) => (current.length === visibleIds.length ? [] : visibleIds));
+  }
+
+  async function restoreSelectedTrash() {
+    if (!selectedTrashIds.length) return;
+    try {
+      const result = await apiFetch(
+        "/trash/batch-restore",
+        { method: "POST", body: JSON.stringify({ file_ids: selectedTrashIds }) },
+        token
+      );
+      setSelectedTrashIds([]);
+      await loadTrash();
+      if (activeFolder) await loadItems(activeFolder.id);
+      await loadProjects();
+      setMessage(`已恢复 ${result.count || 0} 个文件`);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  async function purgeTrashFiles(fileIds = selectedTrashIds) {
+    if (!fileIds.length) return;
+    if (!window.confirm(`确定彻底删除选中的 ${fileIds.length} 个文件吗？此操作不可恢复。`)) return;
+    try {
+      const result = await apiFetch(
+        "/trash/batch-purge",
+        { method: "DELETE", body: JSON.stringify({ file_ids: fileIds }) },
+        token
+      );
+      setSelectedTrashIds([]);
+      await loadTrash();
+      await loadProjects();
+      setMessage(`已彻底删除 ${result.count || 0} 个文件`);
     } catch (err) {
       showError(err);
     }
@@ -1546,6 +1720,63 @@ function App() {
     }));
   }
 
+  function applyLearningDraftTransform(transformer) {
+    const textarea = learningContentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const selectedText = learningDraft.content.slice(start, end);
+    const result = transformer(selectedText, learningDraft.content, start, end);
+    const nextText = result?.text ?? learningDraft.content;
+    const nextSelectionStart = result?.selectionStart ?? start;
+    const nextSelectionEnd = result?.selectionEnd ?? nextSelectionStart;
+    setLearningDraft((current) => ({ ...current, content: nextText }));
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+    });
+  }
+
+  function insertLearningTemplate(kind) {
+    const wrappers = {
+      heading1: (selected) => `# ${selected || "一级标题"}`,
+      heading2: (selected) => `## ${selected || "二级标题"}`,
+      quote: (selected) => `> ${selected || "补一段结论或备注"}`,
+      list: (selected) => `- ${selected || "第一条"}\n- 第二条`,
+      todo: (selected) => `- [ ] ${selected || "待完成事项"}`,
+      code: (selected) => `\`\`\`\n${selected || "代码片段"}\n\`\`\``,
+      sql: (selected) => `\`\`\`sql\n${selected || "select * from table_name;"}\n\`\`\``,
+      table: () => "| 字段 | 说明 |\n| --- | --- |\n| column | remark |",
+    };
+    const builder = wrappers[kind];
+    if (!builder) return;
+    applyLearningDraftTransform((selectedText, content, start, end) => {
+      const snippet = builder(selectedText);
+      const nextText = `${content.slice(0, start)}${snippet}${content.slice(end)}`;
+      const cursor = start + snippet.length;
+      return { text: nextText, selectionStart: cursor, selectionEnd: cursor };
+    });
+  }
+
+  async function restoreLearningVersion(version) {
+    if (!canEditActiveModule) return;
+    if (!window.confirm(`确定恢复到 ${version.created_at?.slice(0, 16).replace("T", " ")} 的版本吗？`)) return;
+    try {
+      const restored = await apiFetch(
+        `/learning/versions/${version.id}/restore`,
+        { method: "POST" },
+        token
+      );
+      await loadLearningItems();
+      setSelectedLearningId(restored.id);
+      setLearningDraft(buildLearningDraft(normalizeLearningItem(restored)));
+      setLearningEditing(false);
+      setMessage("已恢复到选中历史版本");
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   function openLearningEditor(mode = "write") {
     setLearningViewMode(mode);
     setLearningEditing(true);
@@ -1767,10 +1998,70 @@ function App() {
                 >
                   <Archive size={16} />
                   <span>{item.name}</span>
+                  <em>{item.status || "制作中"}</em>
                   <small>{formatSize(item.total_size)}</small>
                 </button>
               ))}
             </div>
+            {project ? (
+              <div className="archive-project-panel">
+                <div className="archive-project-panel-head">
+                  <strong>项目资料</strong>
+                  <span>{canEditActiveModule ? "这里维护客户、状态和备注" : "当前账号可查看项目资料"}</span>
+                </div>
+                <label>
+                  <span>项目名称</span>
+                  <input
+                    value={projectDraft.name}
+                    readOnly={!canEditActiveModule}
+                    onChange={(event) => setProjectDraft((current) => ({ ...current, name: event.target.value }))}
+                  />
+                </label>
+                <div className="archive-project-panel-grid">
+                  <label>
+                    <span>客户</span>
+                    <input
+                      value={projectDraft.client_name}
+                      readOnly={!canEditActiveModule}
+                      placeholder="客户或负责人"
+                      onChange={(event) => setProjectDraft((current) => ({ ...current, client_name: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    <span>状态</span>
+                    <select
+                      value={projectDraft.status}
+                      disabled={!canEditActiveModule}
+                      onChange={(event) => setProjectDraft((current) => ({ ...current, status: event.target.value }))}
+                    >
+                      <option>制作中</option>
+                      <option>待确认</option>
+                      <option>已交付</option>
+                      <option>已归档</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  <span>项目说明</span>
+                  <textarea
+                    value={projectDraft.description}
+                    readOnly={!canEditActiveModule}
+                    placeholder="记录交付说明、特殊约束、文件组织说明"
+                    onChange={(event) => setProjectDraft((current) => ({ ...current, description: event.target.value }))}
+                  />
+                </label>
+                {canEditActiveModule ? (
+                  <button
+                    type="button"
+                    className="primary-button archive-project-save"
+                    disabled={!projectDraftDirty || projectSaving}
+                    onClick={saveProjectDraft}
+                  >
+                    {projectSaving ? "保存中..." : "保存项目资料"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="section-head">
               <span>目录</span>
@@ -2639,6 +2930,18 @@ function App() {
                         <strong>正文</strong>
                         <span>适合写学习笔记、方案、复盘和知识沉淀</span>
                       </div>
+                      {showLearningEditor ? (
+                        <div className="learning-snippet-toolbar">
+                          <button type="button" onClick={() => insertLearningTemplate("heading1")}>H1</button>
+                          <button type="button" onClick={() => insertLearningTemplate("heading2")}>H2</button>
+                          <button type="button" onClick={() => insertLearningTemplate("list")}>列表</button>
+                          <button type="button" onClick={() => insertLearningTemplate("todo")}>待办</button>
+                          <button type="button" onClick={() => insertLearningTemplate("quote")}>引用</button>
+                          <button type="button" onClick={() => insertLearningTemplate("code")}>代码块</button>
+                          <button type="button" onClick={() => insertLearningTemplate("sql")}>SQL 模板</button>
+                          <button type="button" onClick={() => insertLearningTemplate("table")}>表格</button>
+                        </div>
+                      ) : null}
                       <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
                         {showLearningEditor ? (
                         <>
@@ -2648,6 +2951,7 @@ function App() {
                               <span>{learningViewMode === "split" ? "左侧编写，右侧即时预览" : "支持 Ctrl/Cmd + S 保存"}</span>
                             </div>
                             <textarea
+                              ref={learningContentRef}
                               value={learningDraft.content}
                               readOnly={!showLearningEditor}
                               placeholder="在这里开始写你的文档..."
@@ -2679,6 +2983,33 @@ function App() {
                           </article>
                         </div>
                         )}
+                      </div>
+                      <div className="learning-version-panel">
+                        <div className="learning-version-panel-head">
+                          <strong>历史快照</strong>
+                          <span>{learningVersions.length} 个版本，保存后自动沉淀</span>
+                        </div>
+                        <div className="learning-version-list">
+                          {learningVersions.map((version) => (
+                            <div className="learning-version-row" key={version.id}>
+                              <div>
+                                <strong>{version.title}</strong>
+                                <span>
+                                  {version.created_at?.slice(0, 16).replace("T", " ")} · {version.created_by_name || "-"}
+                                </span>
+                                <small>{version.category} · {version.status} · {version.priority}优先级</small>
+                              </div>
+                              {canEditActiveModule ? (
+                                <button type="button" onClick={() => restoreLearningVersion(version)}>
+                                  恢复
+                                </button>
+                              ) : null}
+                            </div>
+                          ))}
+                          {!learningVersions.length ? (
+                            <div className="empty-version">还没有历史快照，先保存一次文档。</div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </>
@@ -2941,13 +3272,56 @@ function App() {
               <button onClick={() => setTrashOpen(false)}><X size={18} /></button>
             </div>
             <div className="trash-list">
+              {trash.length ? (
+                <div className="trash-toolbar">
+                  <label className="batch-select-all">
+                    <input
+                      type="checkbox"
+                      checked={selectedTrashIds.length > 0 && selectedTrashIds.length === trash.length}
+                      onChange={toggleTrashSelectAll}
+                    />
+                    <span>全选回收站文件</span>
+                  </label>
+                  <span className="batch-summary">
+                    {selectedTrashIds.length ? `已选 ${selectedTrashIds.length} 个文件` : "还没有选中文件"}
+                  </span>
+                  <div className="batch-actions">
+                    <button type="button" onClick={restoreSelectedTrash} disabled={!selectedTrashIds.length}>
+                      批量恢复
+                    </button>
+                    {auth.user.role === "admin" ? (
+                      <button type="button" onClick={() => purgeTrashFiles()} disabled={!selectedTrashIds.length}>
+                        彻底删除
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               {trash.map((file) => (
                 <div className="trash-row" key={file.id}>
+                  <label className="trash-select">
+                    <input
+                      type="checkbox"
+                      checked={selectedTrashIds.includes(file.id)}
+                      onChange={() => toggleTrashSelection(file.id)}
+                    />
+                  </label>
                   <div>
                     <strong>{file.name}</strong>
                     <span>{file.project_name} / {file.folder_name}</span>
                   </div>
-                  <button onClick={() => restoreFile(file)}>恢复</button>
+                  <div className="trash-actions">
+                    <button onClick={() => restoreFile(file)}>恢复</button>
+                    {auth.user.role === "admin" ? (
+                      <button
+                        type="button"
+                        className="danger-text-button"
+                        onClick={() => purgeTrashFiles([file.id])}
+                      >
+                        删除
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
               {!trash.length ? <div className="empty-state">回收站为空</div> : null}

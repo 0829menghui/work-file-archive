@@ -508,6 +508,14 @@ textarea:focus-visible {
   padding: 9px 10px;
 }
 
+.project-row em {
+  margin-left: auto;
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
 .project-row span,
 .tree-row span:last-child {
   min-width: 0;
@@ -517,7 +525,51 @@ textarea:focus-visible {
 }
 
 .project-row small {
-  margin-left: auto;
+  color: var(--muted);
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.archive-project-panel {
+  margin: 0 12px 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f8fbfc);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 10px;
+}
+
+.archive-project-panel-head {
+  display: grid;
+  gap: 4px;
+}
+
+.archive-project-panel-head span,
+.archive-project-panel label span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.archive-project-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.archive-project-panel label {
+  display: grid;
+  gap: 6px;
+}
+
+.archive-project-panel textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.archive-project-save {
+  width: 100%;
 }
 
 .project-row.active,
@@ -1393,6 +1445,27 @@ textarea:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.learning-snippet-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learning-snippet-toolbar button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eff5f7;
+  color: #38505e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.learning-snippet-toolbar button:hover {
+  background: #dfeef2;
+  color: var(--accent-strong);
+}
+
 .learning-editor-label {
   display: grid;
   gap: 4px;
@@ -1495,6 +1568,44 @@ textarea:focus-visible {
   padding-left: 22px;
 }
 
+.learning-content-preview .todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  list-style: none;
+  margin-left: -22px;
+}
+
+.learning-content-preview .todo-item input {
+  margin-top: 5px;
+  accent-color: var(--accent);
+}
+
+.learning-table-wrap {
+  overflow: auto;
+  margin-bottom: 16px;
+}
+
+.learning-markdown-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.learning-markdown-table th,
+.learning-markdown-table td {
+  padding: 10px 12px;
+  border: 1px solid #dce5ea;
+  text-align: left;
+  vertical-align: top;
+}
+
+.learning-markdown-table th {
+  background: #f4f8fa;
+  color: var(--text);
+}
+
 .learning-content-preview li + li {
   margin-top: 6px;
 }
@@ -1539,6 +1650,55 @@ textarea:focus-visible {
   padding: 0;
   background: transparent;
   color: inherit;
+}
+
+.learning-version-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-version-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.learning-version-panel-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.learning-version-list {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-version-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.learning-version-row div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.learning-version-row span,
+.learning-version-row small {
+  color: var(--muted);
+}
+
+.learning-version-row button {
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 .learning-preview-empty {
@@ -2488,10 +2648,19 @@ textarea:focus-visible {
   max-height: 70vh;
 }
 
+.trash-toolbar {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: #f7fafb;
+}
+
 .trash-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
@@ -2507,6 +2676,19 @@ textarea:focus-visible {
 .trash-row div {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.trash-select input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.trash-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .trash-row button {

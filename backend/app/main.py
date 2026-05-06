@@ -618,6 +618,44 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
         return {"id": project_id, "name": name}
 
 
+@app.patch("/api/projects/{project_id}")
+def update_project(project_id: int, payload: dict, user: dict = Depends(require_user)) -> dict:
+    allowed = {"name", "client_name", "status", "description"}
+    updates = []
+    values = []
+    for key in allowed:
+        if key not in payload:
+            continue
+        value = payload.get(key)
+        if isinstance(value, str):
+            value = value.strip()
+        if key == "name" and not value:
+            raise HTTPException(status_code=400, detail="项目名称不能为空")
+        updates.append(f"{key} = ?")
+        values.append(value or "")
+    if not updates:
+        raise HTTPException(status_code=400, detail="没有可更新内容")
+    values.extend([utc_now(), project_id])
+    with get_db() as conn:
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not project:
+            raise HTTPException(status_code=404, detail="项目不存在")
+        root_folder = conn.execute(
+            "SELECT id FROM folders WHERE project_id = ? AND parent_id IS NULL AND is_deleted = 0 ORDER BY id LIMIT 1",
+            (project_id,),
+        ).fetchone()
+        if not root_folder:
+            raise HTTPException(status_code=404, detail="项目目录不存在")
+        ensure_permission(conn, user, root_folder["id"], ("write",))
+        conn.execute(
+            f"UPDATE projects SET {', '.join(updates)}, updated_at = ? WHERE id = ?",
+            values,
+        )
+        updated = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        log_action(conn, user["id"], "update_project", "project", project_id, updated["name"])
+        return row_to_dict(updated)
+
+
 @app.get("/api/projects/{project_id}/tree")
 def project_tree(project_id: int, user: dict = Depends(require_user)) -> dict:
     with get_db() as conn:
@@ -1268,6 +1306,27 @@ def repair_learning_folder(conn, item_id: int) -> None:
     )
 
 
+def save_learning_version(conn, item_row, user_id: int) -> None:
+    conn.execute(
+        """
+        INSERT INTO learning_versions
+            (item_id, title, category, status, priority, content, resource_url, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            item_row["id"],
+            item_row["title"],
+            item_row["category"] or "",
+            item_row["status"] or "计划中",
+            item_row["priority"] or "中",
+            item_row["content"] or "",
+            item_row["resource_url"] or "",
+            user_id,
+            utc_now(),
+        ),
+    )
+
+
 @app.post("/api/learning/items")
 def create_learning_item(payload: dict, user: dict = Depends(require_user)) -> dict:
     title = (payload.get("title") or "").strip()
@@ -1312,8 +1371,11 @@ def create_learning_item(payload: dict, user: dict = Depends(require_user)) -> d
             ),
         )
         item_id = cur.lastrowid
+        created = conn.execute("SELECT * FROM learning_items WHERE id = ?", (item_id,)).fetchone()
+        if created and created["item_type"] == "doc":
+            save_learning_version(conn, created, user["id"])
         log_action(conn, user["id"], "create_learning_item", "learning_item", item_id, title)
-        return row_to_dict(conn.execute("SELECT * FROM learning_items WHERE id = ?", (item_id,)).fetchone())
+        return row_to_dict(created)
 
 
 @app.patch("/api/learning/items/{item_id}")
@@ -1361,8 +1423,16 @@ def update_learning_item(item_id: int, payload: dict, user: dict = Depends(requi
                         ).fetchone()
                         current = row["parent_id"] if row else None
         conn.execute(f"UPDATE learning_items SET {', '.join(updates)} WHERE id = ?", values)
+        updated = conn.execute("SELECT * FROM learning_items WHERE id = ?", (item_id,)).fetchone()
+        tracked_fields = ("title", "category", "status", "priority", "content", "resource_url")
+        if (
+            existing["item_type"] == "doc"
+            and updated
+            and any(existing[field] != updated[field] for field in tracked_fields)
+        ):
+            save_learning_version(conn, updated, user["id"])
         log_action(conn, user["id"], "update_learning_item", "learning_item", item_id)
-        return row_to_dict(conn.execute("SELECT * FROM learning_items WHERE id = ?", (item_id,)).fetchone())
+        return row_to_dict(updated)
 
 
 @app.delete("/api/learning/items/{item_id}")
@@ -1397,6 +1467,72 @@ def delete_learning_item(item_id: int, user: dict = Depends(require_user)) -> di
     return {"ok": True}
 
 
+@app.get("/api/learning/items/{item_id}/versions")
+def list_learning_versions(item_id: int, user: dict = Depends(require_user)) -> list[dict]:
+    with get_db() as conn:
+        ensure_module_access(conn, user, "learning", "read")
+        item = conn.execute(
+            "SELECT * FROM learning_items WHERE id = ? AND is_deleted = 0",
+            (item_id,),
+        ).fetchone()
+        if not item:
+            raise HTTPException(status_code=404, detail="学习条目不存在")
+        rows = conn.execute(
+            """
+            SELECT lv.*, u.display_name AS created_by_name
+            FROM learning_versions lv
+            LEFT JOIN users u ON u.id = lv.created_by
+            WHERE lv.item_id = ?
+            ORDER BY lv.id DESC
+            """,
+            (item_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.post("/api/learning/versions/{version_id}/restore")
+def restore_learning_version(version_id: int, user: dict = Depends(require_user)) -> dict:
+    with get_db() as conn:
+        ensure_module_access(conn, user, "learning", "edit")
+        version = conn.execute(
+            """
+            SELECT lv.*, li.item_type, li.is_deleted
+            FROM learning_versions lv
+            JOIN learning_items li ON li.id = lv.item_id
+            WHERE lv.id = ?
+            """,
+            (version_id,),
+        ).fetchone()
+        if not version or version["is_deleted"]:
+            raise HTTPException(status_code=404, detail="版本不存在")
+        if version["item_type"] != "doc":
+            raise HTTPException(status_code=400, detail="只有文档支持恢复历史版本")
+        conn.execute(
+            """
+            UPDATE learning_items
+            SET title = ?, category = ?, status = ?, priority = ?, content = ?, resource_url = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                version["title"],
+                version["category"],
+                version["status"],
+                version["priority"],
+                version["content"],
+                version["resource_url"],
+                utc_now(),
+                version["item_id"],
+            ),
+        )
+        restored = conn.execute(
+            "SELECT * FROM learning_items WHERE id = ?",
+            (version["item_id"],),
+        ).fetchone()
+        save_learning_version(conn, restored, user["id"])
+        log_action(conn, user["id"], "restore_learning_version", "learning_item", version["item_id"], version["title"])
+        return row_to_dict(restored)
+
+
 @app.post("/api/files/{file_id}/restore")
 def restore_file(file_id: int, user: dict = Depends(require_user)) -> dict:
     with get_db() as conn:
@@ -1407,6 +1543,33 @@ def restore_file(file_id: int, user: dict = Depends(require_user)) -> dict:
         conn.execute("UPDATE files SET is_deleted = 0, updated_at = ? WHERE id = ?", (utc_now(), file_id))
         log_action(conn, user["id"], "restore_file", "file", file_id, file_row["name"])
     return {"ok": True}
+
+
+@app.post("/api/trash/batch-restore")
+def batch_restore_files(payload: dict, user: dict = Depends(require_user)) -> dict:
+    file_ids = payload.get("file_ids") or []
+    if not file_ids:
+        raise HTTPException(status_code=400, detail="请选择需要恢复的文件")
+    try:
+        parsed_ids = [int(item) for item in file_ids]
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="文件参数不正确") from exc
+    placeholders = ",".join("?" for _ in parsed_ids)
+    now = utc_now()
+    restored = 0
+    with get_db() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM files WHERE id IN ({placeholders}) AND is_deleted = 1",
+            parsed_ids,
+        ).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        for row in rows:
+            ensure_permission(conn, user, row["folder_id"], ("write",))
+            conn.execute("UPDATE files SET is_deleted = 0, updated_at = ? WHERE id = ?", (now, row["id"]))
+            log_action(conn, user["id"], "restore_file", "file", row["id"], row["name"])
+            restored += 1
+    return {"ok": True, "count": restored}
 
 
 @app.delete("/api/files/{file_id}/purge")
@@ -1421,6 +1584,41 @@ def purge_file(file_id: int, user: dict = Depends(require_admin)) -> dict:
         if path.exists():
             path.unlink()
     return {"ok": True}
+
+
+@app.delete("/api/trash/batch-purge")
+def batch_purge_files(payload: dict, user: dict = Depends(require_admin)) -> dict:
+    file_ids = payload.get("file_ids") or []
+    if not file_ids:
+        raise HTTPException(status_code=400, detail="请选择需要彻底删除的文件")
+    try:
+        parsed_ids = [int(item) for item in file_ids]
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="文件参数不正确") from exc
+    placeholders = ",".join("?" for _ in parsed_ids)
+    deleted_paths = []
+    purged = 0
+    with get_db() as conn:
+        rows = conn.execute(
+            f"SELECT id, name FROM files WHERE id IN ({placeholders}) AND is_deleted = 1",
+            parsed_ids,
+        ).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        for row in rows:
+            versions = conn.execute(
+                "SELECT storage_path FROM file_versions WHERE file_id = ?",
+                (row["id"],),
+            ).fetchall()
+            deleted_paths.extend(version["storage_path"] for version in versions)
+            conn.execute("DELETE FROM files WHERE id = ?", (row["id"],))
+            log_action(conn, user["id"], "purge_file", "file", row["id"], row["name"])
+            purged += 1
+    for path_value in deleted_paths:
+        path = FILES_DIR.parent / path_value
+        if path.exists():
+            path.unlink()
+    return {"ok": True, "count": purged}
 
 
 @app.post("/api/backup")

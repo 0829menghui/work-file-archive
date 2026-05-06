@@ -164,6 +164,19 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS learning_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL REFERENCES learning_items(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT '计划中',
+                priority TEXT NOT NULL DEFAULT '中',
+                content TEXT NOT NULL DEFAULT '',
+                resource_url TEXT NOT NULL DEFAULT '',
+                created_by INTEGER REFERENCES users(id),
+                created_at TEXT NOT NULL
+            );
             """
         )
         now = utc_now()
