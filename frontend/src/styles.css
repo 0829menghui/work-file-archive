@@ -1107,6 +1107,30 @@ textarea:focus-visible {
   margin-bottom: 0;
 }
 
+.learning-sidebar-tag-adder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.learning-sidebar-tag-adder input {
+  min-height: 34px;
+  border: 1px solid #d3dee6;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+}
+
+.learning-sidebar-tag-adder button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #e7f1f4;
+  color: #2f6574;
+  font-weight: 700;
+}
+
 .learning-category-strip span {
   color: var(--muted);
   font-size: 13px;
@@ -1137,6 +1161,12 @@ textarea:focus-visible {
   border-color: #c7dbe2;
   background: #eef7f9;
   color: var(--accent-strong);
+}
+
+.learning-category-strip button.active {
+  border-color: #84c0ca;
+  background: #dff1f4;
+  color: #0f6570;
 }
 
 .learning-category-strip.compact {

@@ -730,6 +730,16 @@ function App() {
   });
   const [learningAutosaveLabel, setLearningAutosaveLabel] = useState("");
   const [learningTagInput, setLearningTagInput] = useState("");
+  const [learningSidebarTagInput, setLearningSidebarTagInput] = useState("");
+  const [learningCustomTags, setLearningCustomTags] = useState(() => {
+    try {
+      const raw = localStorage.getItem("work-file-archive-learning-custom-tags");
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  });
   const [learningTreeWidth, setLearningTreeWidth] = useState(() => {
     const raw = localStorage.getItem("work-file-archive-learning-tree-width");
     const value = raw ? Number(raw) : 360;
@@ -788,6 +798,7 @@ function App() {
         .flatMap((item) => parseLearningTags(item.tags || ""))
     )
   );
+  const learningSidebarTags = Array.from(new Set([...learningCustomTags, ...learningTags]));
   const learningTree = useMemo(() => buildLearningTree(learningItems), [learningItems]);
   const filteredLearningTree = useMemo(
     () => filterLearningTree(learningTree, learningFilters),
@@ -877,6 +888,10 @@ function App() {
       loadModules();
     }
   }, [auth]);
+
+  useEffect(() => {
+    localStorage.setItem("work-file-archive-learning-custom-tags", JSON.stringify(learningCustomTags));
+  }, [learningCustomTags]);
 
   useEffect(() => {
     localStorage.setItem(LEARNING_VIEW_STORAGE_KEY, learningViewMode);
@@ -1065,6 +1080,21 @@ function App() {
     const text = err.message || String(err);
     setMessage(text === "没有访问该模块的权限" ? "当前账号没有访问该模块的权限" : text);
     window.setTimeout(() => setMessage(""), 3200);
+  }
+
+  function addSidebarLearningTag() {
+    const next = learningSidebarTagInput.trim().replace(/^#/, "");
+    if (!next) return;
+    setLearningCustomTags((current) => (current.includes(next) ? current : [...current, next]));
+    setLearningSidebarTagInput("");
+    setLearningFilters((current) => ({ ...current, query: next }));
+  }
+
+  function toggleLearningTagFilter(tag) {
+    setLearningFilters((current) => ({
+      ...current,
+      query: current.query === tag ? "" : tag,
+    }));
   }
 
   async function loadModules() {
@@ -2137,27 +2167,43 @@ function App() {
                 </button>
                 {learningSidebarPanels.categories ? (
                   <div className="learning-sidebar-panel-body">
+                    <div className="learning-sidebar-tag-adder">
+                      <input
+                        value={learningSidebarTagInput}
+                        placeholder="添加标签"
+                        onChange={(event) => setLearningSidebarTagInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addSidebarLearningTag();
+                          }
+                        }}
+                      />
+                      <button type="button" onClick={addSidebarLearningTag}>添加</button>
+                    </div>
                     <div className="learning-category-strip compact">
                       <div>
                         {learningCategories.map((item) => (
                           <button
                             key={item}
                             type="button"
-                            onClick={() => setLearningFilters((current) => ({ ...current, query: item }))}
+                            className={learningFilters.query === item ? "active" : ""}
+                            onClick={() => setLearningFilters((current) => ({ ...current, query: current.query === item ? "" : item }))}
                           >
                             {item}
                           </button>
                         ))}
                       </div>
                     </div>
-                    {learningTags.length ? (
+                    {learningSidebarTags.length ? (
                       <div className="learning-category-strip compact">
                         <div>
-                          {learningTags.slice(0, 10).map((item) => (
+                          {learningSidebarTags.slice(0, 16).map((item) => (
                             <button
                               key={`tag-filter-${item}`}
                               type="button"
-                              onClick={() => setLearningFilters((current) => ({ ...current, query: item }))}
+                              className={learningFilters.query === item ? "active" : ""}
+                              onClick={() => toggleLearningTagFilter(item)}
                             >
                               #{item}
                             </button>
