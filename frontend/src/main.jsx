@@ -1874,6 +1874,29 @@ function App() {
                 ))}
               </div>
             </div>
+            {selectedLearningIds.length ? (
+              <div className="learning-batch-toolbar">
+                <span className="batch-summary">已选 {selectedLearningIds.length} 项内容</span>
+                <div className="batch-actions">
+                  <select
+                    className="batch-target-select"
+                    value={learningBatchTargetParentId}
+                    onChange={(event) => setLearningBatchTargetParentId(event.target.value)}
+                  >
+                    <option value="">移动到知识库根目录</option>
+                    {learningFolderOptions.map((item) => (
+                      <option key={item.id} value={item.id}>{item.title}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={moveSelectedLearningItems}>
+                    批量移动
+                  </button>
+                  <button type="button" onClick={updateSelectedLearningCategory}>
+                    批量改分类
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="tree learning-sidebar-tree">
               {canEditActiveModule ? (
                 <button
@@ -2076,6 +2099,23 @@ function App() {
                   {selectedArchiveIds.length ? `已选 ${selectedArchiveIds.length} 个文件` : "还没有选中文件"}
                 </span>
                 <div className="batch-actions">
+                  <select
+                    className="batch-target-select"
+                    value={archiveBatchTargetFolderId}
+                    onChange={(event) => setArchiveBatchTargetFolderId(event.target.value)}
+                  >
+                    <option value="">选择目标目录</option>
+                    {archiveFolderOptions.map((folder) => (
+                      <option key={folder.id} value={folder.id}>{folder.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={moveSelectedFiles}
+                    disabled={!selectedArchiveIds.length || !archiveBatchTargetFolderId}
+                  >
+                    批量移动
+                  </button>
                   <button type="button" onClick={downloadSelectedFiles} disabled={!selectedArchiveIds.length}>
                     批量下载
                   </button>
