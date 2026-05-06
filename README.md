@@ -273,6 +273,7 @@ data/storage/
 
 - [USER_GUIDE.md](./USER_GUIDE.md): 业务使用说明。
 - [GIT_DEPLOY.md](./GIT_DEPLOY.md): Git 上传与服务器部署说明。
+- [V2_ROADMAP.md](./V2_ROADMAP.md): 第二版迭代路线图。
 
 仓库与线上地址：
 

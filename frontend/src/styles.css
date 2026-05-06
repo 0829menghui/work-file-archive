@@ -1276,6 +1276,31 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
+.learning-view-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid #d6e2e8;
+  border-radius: 10px;
+  background: #f4f8fa;
+}
+
+.learning-view-switch button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.learning-view-switch button.active {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(23, 32, 42, 0.08);
+}
+
 .learning-editor-actions button {
   min-height: 36px;
   padding: 0 12px;
@@ -1340,6 +1365,11 @@ textarea:focus-visible {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.learning-content-workspace.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
 .learning-content-card {
   min-height: 0;
   display: grid;
@@ -1374,6 +1404,11 @@ textarea:focus-visible {
   color: #263442;
   background: #fbfdfe;
   font: 15px/1.8 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.learning-editor-body textarea:focus-visible {
+  outline: 2px solid rgba(35, 125, 142, 0.18);
+  border-color: #7bb8c2;
 }
 
 .learning-content-preview {
@@ -2420,6 +2455,10 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .learning-content-workspace.split {
+    grid-template-columns: 1fr;
+  }
+
   .learning-resizer {
     display: none;
   }
@@ -2493,5 +2532,10 @@ textarea:focus-visible {
   .learning-head-actions,
   .learning-editor-actions {
     width: 100%;
+  }
+
+  .learning-view-switch {
+    width: 100%;
+    justify-content: space-between;
   }
 }

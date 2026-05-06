@@ -27,6 +27,11 @@ import {
 import "./styles.css";
 
 const API = import.meta.env.VITE_API_BASE || "/api";
+const LEARNING_VIEW_STORAGE_KEY = "work-file-archive-learning-view-mode";
+
+function getLearningDraftStorageKey(itemId) {
+  return `work-file-archive-learning-draft-${itemId}`;
+}
 
 function formatSize(bytes = 0) {
   if (!bytes) return "0 B";
@@ -561,6 +566,13 @@ function buildLearningDraft(item) {
   };
 }
 
+function nowTimeLabel() {
+  return new Date().toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getPreviewKind(ext = "") {
   const value = ext.toLowerCase();
   if (IMAGE_PREVIEW_EXTENSIONS.has(value)) return "image";
@@ -611,6 +623,11 @@ function App() {
   const [learningDraft, setLearningDraft] = useState(() => buildLearningDraft());
   const [learningSaving, setLearningSaving] = useState(false);
   const [learningEditing, setLearningEditing] = useState(false);
+  const [learningViewMode, setLearningViewMode] = useState(() => {
+    const raw = localStorage.getItem(LEARNING_VIEW_STORAGE_KEY);
+    return raw === "split" ? "split" : "write";
+  });
+  const [learningAutosaveLabel, setLearningAutosaveLabel] = useState("");
   const [learningTreeWidth, setLearningTreeWidth] = useState(() => {
     const raw = localStorage.getItem("work-file-archive-learning-tree-width");
     const value = raw ? Number(raw) : 360;
@@ -713,6 +730,10 @@ function App() {
   }, [auth]);
 
   useEffect(() => {
+    localStorage.setItem(LEARNING_VIEW_STORAGE_KEY, learningViewMode);
+  }, [learningViewMode]);
+
+  useEffect(() => {
     localStorage.setItem("work-file-archive-learning-tree-width", String(learningTreeWidth));
   }, [learningTreeWidth]);
 
@@ -720,11 +741,75 @@ function App() {
     if (!selectedLearningItem) {
       setLearningDraft(buildLearningDraft());
       setLearningEditing(false);
+      setLearningAutosaveLabel("");
       return;
     }
-    setLearningDraft(buildLearningDraft(selectedLearningItem));
+    const baseDraft = buildLearningDraft(selectedLearningItem);
+    if (selectedLearningItem.item_type === "doc") {
+      const cached = localStorage.getItem(getLearningDraftStorageKey(selectedLearningItem.id));
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed?.draft) {
+            setLearningDraft({ ...baseDraft, ...parsed.draft });
+            setLearningEditing(true);
+            setLearningAutosaveLabel("已恢复未保存草稿");
+            return;
+          }
+        } catch {
+          localStorage.removeItem(getLearningDraftStorageKey(selectedLearningItem.id));
+        }
+      }
+    }
+    setLearningDraft(baseDraft);
     setLearningEditing(false);
+    setLearningAutosaveLabel("");
   }, [selectedLearningItem?.id]);
+
+  useEffect(() => {
+    if (!selectedLearningItem || selectedLearningItem.item_type !== "doc") return;
+    const storageKey = getLearningDraftStorageKey(selectedLearningItem.id);
+    if (learningEditing && learningDraftDirty) {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          draft: learningDraft,
+          savedAt: Date.now(),
+        })
+      );
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  }, [selectedLearningItem?.id, selectedLearningItem?.item_type, learningEditing, learningDraftDirty, learningDraft]);
+
+  useEffect(() => {
+    if (!selectedLearningItem || selectedLearningItem.item_type !== "doc" || !canEditActiveModule || !learningEditing || !learningDraftDirty) return undefined;
+    const timer = window.setTimeout(() => {
+      saveLearningDraft({ silent: true, keepEditing: true });
+    }, 1600);
+    return () => window.clearTimeout(timer);
+  }, [selectedLearningItem?.id, selectedLearningItem?.item_type, canEditActiveModule, learningEditing, learningDraftDirty, learningDraft]);
+
+  useEffect(() => {
+    const onBeforeUnload = (event) => {
+      if (!learningEditing || !learningDraftDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [learningEditing, learningDraftDirty]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+      if (!selectedLearningItem || selectedLearningItem.item_type !== "doc" || !learningEditing) return;
+      event.preventDefault();
+      saveLearningDraft({ keepEditing: true });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedLearningItem?.id, selectedLearningItem?.item_type, learningEditing, learningDraftDirty, learningDraft]);
 
   useEffect(() => {
     if (!selectedLearningItem || selectedLearningItem.item_type !== "doc" || !canEditActiveModule || !learningEditing) return;
@@ -1204,8 +1289,9 @@ function App() {
     }
   }
 
-  async function updateLearningItem(itemId, patch) {
+  async function updateLearningItem(itemId, patch, options = {}) {
     if (!canEditActiveModule) return;
+    const { silent = false, keepEditing = false } = options;
     try {
       setLearningSaving(true);
       await apiFetch(
@@ -1214,8 +1300,14 @@ function App() {
         token
       );
       await loadLearningItems();
-      setMessage("文档已保存");
-      setLearningEditing(false);
+      localStorage.removeItem(getLearningDraftStorageKey(itemId));
+      if (silent) {
+        setLearningAutosaveLabel(`自动保存于 ${nowTimeLabel()}`);
+      } else {
+        setMessage("文档已保存");
+        setLearningAutosaveLabel(`手动保存于 ${nowTimeLabel()}`);
+      }
+      setLearningEditing(keepEditing);
     } catch (err) {
       showError(err);
     } finally {
@@ -1278,18 +1370,20 @@ function App() {
     setLearningEditing(false);
   }
 
-  async function saveLearningDraft() {
+  async function saveLearningDraft(options = {}) {
     if (!selectedLearningItem || !canEditActiveModule || !learningDraftDirty) return;
     if (!learningDraft.title.trim()) {
       setMessage("文档标题不能为空");
       return;
     }
-    await updateLearningItem(selectedLearningItem.id, learningDraft);
+    await updateLearningItem(selectedLearningItem.id, learningDraft, options);
   }
 
   function cancelLearningEdit() {
     if (!selectedLearningItem) return;
+    localStorage.removeItem(getLearningDraftStorageKey(selectedLearningItem.id));
     setLearningDraft(buildLearningDraft(selectedLearningItem));
+    setLearningAutosaveLabel("");
     setLearningEditing(false);
   }
 
@@ -1298,6 +1392,11 @@ function App() {
       ...current,
       content: formatSql(current.content),
     }));
+  }
+
+  function openLearningEditor(mode = "write") {
+    setLearningViewMode(mode);
+    setLearningEditing(true);
   }
 
   function startLearningTreeResize(event) {
@@ -2107,6 +2206,7 @@ function App() {
                           最后更新 {selectedLearningItem.updated_at?.slice(0, 10) || "-"}
                           {learningDraftDirty ? " · 未保存" : ""}
                           {!learningDraftDirty && !learningEditing ? " · 已保存" : ""}
+                          {learningAutosaveLabel ? ` · ${learningAutosaveLabel}` : ""}
                         </span>
                       </div>
                       <div className="learning-editor-actions">
@@ -2116,6 +2216,29 @@ function App() {
                             打开资料
                           </button>
                         ) : null}
+                        <div className="learning-view-switch" role="tablist" aria-label="文档视图模式">
+                          <button
+                            type="button"
+                            className={!learningEditing ? "active" : ""}
+                            onClick={() => setLearningEditing(false)}
+                          >
+                            阅读
+                          </button>
+                          <button
+                            type="button"
+                            className={learningEditing && learningViewMode === "write" ? "active" : ""}
+                            onClick={() => openLearningEditor("write")}
+                          >
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            className={learningEditing && learningViewMode === "split" ? "active" : ""}
+                            onClick={() => openLearningEditor("split")}
+                          >
+                            分栏
+                          </button>
+                        </div>
                         {canEditActiveModule ? (
                           <>
                             {learningEditing ? (
@@ -2132,7 +2255,7 @@ function App() {
                                   type="button"
                                   className="primary-button"
                                   disabled={!learningDraftDirty || learningSaving}
-                                  onClick={saveLearningDraft}
+                                  onClick={() => saveLearningDraft({ keepEditing: true })}
                                 >
                                   {learningSaving ? "保存中..." : "保存文档"}
                                 </button>
@@ -2142,7 +2265,7 @@ function App() {
                                 <button type="button" onClick={() => deleteLearningItem(selectedLearningItem)}>
                                   删除
                                 </button>
-                                <button type="button" className="primary-button" onClick={() => setLearningEditing(true)}>
+                                <button type="button" className="primary-button" onClick={() => openLearningEditor("write")}>
                                   编辑
                                 </button>
                               </>
@@ -2211,27 +2334,40 @@ function App() {
                         <strong>正文</strong>
                         <span>适合写学习笔记、方案、复盘和知识沉淀</span>
                       </div>
-                      <div className="learning-content-workspace">
+                      <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
                         {showLearningEditor ? (
-                        <div className="learning-content-card learning-content-card-editor">
-                          <div className="learning-content-card-head">
-                            <strong>编辑区</strong>
-                            <span>保存后显示排版视图</span>
+                        <>
+                          <div className="learning-content-card learning-content-card-editor">
+                            <div className="learning-content-card-head">
+                              <strong>编辑区</strong>
+                              <span>{learningViewMode === "split" ? "左侧编写，右侧即时预览" : "支持 Ctrl/Cmd + S 保存"}</span>
+                            </div>
+                            <textarea
+                              value={learningDraft.content}
+                              readOnly={!showLearningEditor}
+                              placeholder="在这里开始写你的文档..."
+                              onChange={(event) =>
+                                setLearningDraft((current) => ({ ...current, content: event.target.value }))
+                              }
+                            />
                           </div>
-                          <textarea
-                            value={learningDraft.content}
-                            readOnly={!showLearningEditor}
-                            placeholder="在这里开始写你的文档..."
-                            onChange={(event) =>
-                              setLearningDraft((current) => ({ ...current, content: event.target.value }))
-                            }
-                          />
-                        </div>
+                          {learningViewMode === "split" ? (
+                            <div className="learning-content-card learning-content-card-preview">
+                              <div className="learning-content-card-head">
+                                <strong>即时预览</strong>
+                                <span>边写边看排版效果</span>
+                              </div>
+                              <article className="learning-content-preview">
+                                {renderLearningContent(learningDraft.content)}
+                              </article>
+                            </div>
+                          ) : null}
+                        </>
                         ) : (
                         <div className="learning-content-card learning-content-card-preview">
                           <div className="learning-content-card-head">
                             <strong>阅读视图</strong>
-                            <span>修改标题、分类或正文后进入编辑状态</span>
+                            <span>切到编辑或分栏模式开始修改</span>
                           </div>
                           <article className="learning-content-preview">
                             {renderLearningContent(learningDraft.content)}
