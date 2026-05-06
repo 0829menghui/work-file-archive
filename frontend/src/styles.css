@@ -1607,6 +1607,54 @@ textarea:focus-visible {
   background: #f8fbfc;
 }
 
+.learning-tag-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-tag-input {
+  min-width: 140px;
+  flex: 1 1 160px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+}
+
+.learning-tag-add {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #e7f1f4;
+  color: #2f6574;
+  font-weight: 700;
+}
+
+.learning-tag-add:hover {
+  background: #d7eaef;
+  color: var(--accent-strong);
+}
+
+.learning-tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learning-tag-suggestions button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f3f7f9;
+  color: #486070;
+  border: 1px solid #dbe4eb;
+}
+
+.learning-tag-suggestions button:hover {
+  background: #e8f3f6;
+  color: var(--accent-strong);
+}
+
 .learning-tag-display.empty {
   color: var(--muted);
 }
@@ -1621,6 +1669,16 @@ textarea:focus-visible {
   align-items: center;
   font-size: 13px;
   font-weight: 700;
+}
+
+.learning-tag-chip.removable {
+  border: 0;
+  cursor: pointer;
+}
+
+.learning-tag-chip.removable span {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .learning-tag-empty {
@@ -1709,6 +1767,10 @@ textarea:focus-visible {
 
 .learning-content-card-preview {
   min-height: 320px;
+}
+
+.learning-content-card-preview.click-to-edit {
+  cursor: text;
 }
 
 .learning-content-card-head {
@@ -1886,11 +1948,22 @@ textarea:focus-visible {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .learning-version-panel-head span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.learning-version-panel-head em {
+  color: var(--accent-strong);
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .learning-version-list {

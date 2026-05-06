@@ -729,6 +729,7 @@ function App() {
     return raw === "split" ? "split" : "write";
   });
   const [learningAutosaveLabel, setLearningAutosaveLabel] = useState("");
+  const [learningTagInput, setLearningTagInput] = useState("");
   const [learningTreeWidth, setLearningTreeWidth] = useState(() => {
     const raw = localStorage.getItem("work-file-archive-learning-tree-width");
     const value = raw ? Number(raw) : 360;
@@ -739,6 +740,7 @@ function App() {
     categories: false,
     shortcuts: false,
   }));
+  const [learningHistoryOpen, setLearningHistoryOpen] = useState(false);
   const [adminData, setAdminData] = useState({ users: [], modules: [] });
   const [moduleDrafts, setModuleDrafts] = useState({});
   const [newUser, setNewUser] = useState({
@@ -889,6 +891,7 @@ function App() {
       setLearningDraft(buildLearningDraft());
       setLearningEditing(false);
       setLearningAutosaveLabel("");
+      setLearningTagInput("");
       return;
     }
     const baseDraft = buildLearningDraft(selectedLearningItem);
@@ -911,6 +914,7 @@ function App() {
     setLearningDraft(baseDraft);
     setLearningEditing(false);
     setLearningAutosaveLabel("");
+    setLearningTagInput("");
   }, [selectedLearningItem?.id]);
 
   useEffect(() => {
@@ -1803,6 +1807,28 @@ function App() {
       const cursor = start + snippet.length;
       return { text: nextText, selectionStart: cursor, selectionEnd: cursor };
     });
+  }
+
+  function updateLearningTags(nextTags) {
+    setLearningDraft((current) => ({ ...current, tags: nextTags.join(", ") }));
+  }
+
+  function addLearningTag(tag) {
+    const value = (tag || "").trim().replace(/^#/, "");
+    if (!value) return;
+    const nextTags = Array.from(new Set([...currentLearningTags, value]));
+    updateLearningTags(nextTags);
+    setLearningTagInput("");
+  }
+
+  function removeLearningTag(tag) {
+    updateLearningTags(currentLearningTags.filter((item) => item !== tag));
+  }
+
+  function handleLearningTagInputKeyDown(event) {
+    if (event.key !== "Enter" && event.key !== ",") return;
+    event.preventDefault();
+    addLearningTag(learningTagInput);
   }
 
   async function restoreLearningVersion(version) {
@@ -2947,14 +2973,48 @@ function App() {
                     <label className="learning-link-field">
                       <span>标签</span>
                       {showLearningEditor ? (
-                        <input
-                          value={learningDraft.tags}
-                          readOnly={!showLearningEditor}
-                          placeholder="用英文逗号分隔，比如 SQL, Flink, 指标体系"
-                          onChange={(event) =>
-                            setLearningDraft((current) => ({ ...current, tags: event.target.value }))
-                          }
-                        />
+                        <div className="learning-tag-editor">
+                          <div className="learning-tag-display">
+                            {currentLearningTags.length ? (
+                              currentLearningTags.map((tag) => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  className="learning-tag-chip removable"
+                                  onClick={() => removeLearningTag(tag)}
+                                  title={`移除标签 ${tag}`}
+                                >
+                                  #{tag}
+                                  <span>×</span>
+                                </button>
+                              ))
+                            ) : (
+                              <span className="learning-tag-empty">未设置标签</span>
+                            )}
+                            <input
+                              className="learning-tag-input"
+                              value={learningTagInput}
+                              placeholder="输入标签后回车"
+                              onChange={(event) => setLearningTagInput(event.target.value)}
+                              onKeyDown={handleLearningTagInputKeyDown}
+                            />
+                            <button type="button" className="learning-tag-add" onClick={() => addLearningTag(learningTagInput)}>
+                              添加
+                            </button>
+                          </div>
+                          {learningTags.length ? (
+                            <div className="learning-tag-suggestions">
+                              {learningTags
+                                .filter((tag) => !currentLearningTags.includes(tag))
+                                .slice(0, 12)
+                                .map((tag) => (
+                                  <button key={`quick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
+                                    #{tag}
+                                  </button>
+                                ))}
+                            </div>
+                          ) : null}
+                        </div>
                       ) : (
                         <div className={`learning-tag-display ${currentLearningTags.length ? "" : "empty"}`}>
                           {currentLearningTags.length ? (
@@ -2985,7 +3045,7 @@ function App() {
                           <button type="button" onClick={() => insertLearningTemplate("table")}>表格</button>
                         </div>
                       ) : null}
-                      <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
+                        <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
                         {showLearningEditor ? (
                         <>
                           <div className="learning-content-card learning-content-card-editor">
@@ -3016,10 +3076,15 @@ function App() {
                           ) : null}
                         </>
                         ) : (
-                        <div className="learning-content-card learning-content-card-preview">
+                        <div
+                          className={`learning-content-card learning-content-card-preview ${canEditActiveModule ? "click-to-edit" : ""}`}
+                          onClick={() => {
+                            if (canEditActiveModule) openLearningEditor("write");
+                          }}
+                        >
                           <div className="learning-content-card-head">
                             <strong>阅读视图</strong>
-                            <span>切到编辑或分栏模式开始修改</span>
+                            <span>{canEditActiveModule ? "点击正文或上方编辑按钮开始修改" : "当前账号仅可阅读"}</span>
                           </div>
                           <article className="learning-content-preview">
                             {renderLearningContent(learningDraft.content)}
@@ -3028,31 +3093,38 @@ function App() {
                         )}
                       </div>
                       <div className="learning-version-panel">
-                        <div className="learning-version-panel-head">
+                        <button
+                          type="button"
+                          className="learning-version-panel-head"
+                          onClick={() => setLearningHistoryOpen((current) => !current)}
+                        >
                           <strong>历史快照</strong>
                           <span>{learningVersions.length} 个版本，保存后自动沉淀</span>
-                        </div>
-                        <div className="learning-version-list">
-                          {learningVersions.map((version) => (
-                            <div className="learning-version-row" key={version.id}>
-                              <div>
-                                <strong>{version.title}</strong>
-                                <span>
-                                  {version.created_at?.slice(0, 16).replace("T", " ")} · {version.created_by_name || "-"}
-                                </span>
-                                <small>{version.category} · {version.status} · {version.priority}优先级</small>
+                          <em>{learningHistoryOpen ? "收起" : "展开"}</em>
+                        </button>
+                        {learningHistoryOpen ? (
+                          <div className="learning-version-list">
+                            {learningVersions.map((version) => (
+                              <div className="learning-version-row" key={version.id}>
+                                <div>
+                                  <strong>{version.title}</strong>
+                                  <span>
+                                    {version.created_at?.slice(0, 16).replace("T", " ")} · {version.created_by_name || "-"}
+                                  </span>
+                                  <small>{version.category} · {version.status} · {version.priority}优先级</small>
+                                </div>
+                                {canEditActiveModule ? (
+                                  <button type="button" onClick={() => restoreLearningVersion(version)}>
+                                    恢复
+                                  </button>
+                                ) : null}
                               </div>
-                              {canEditActiveModule ? (
-                                <button type="button" onClick={() => restoreLearningVersion(version)}>
-                                  恢复
-                                </button>
-                              ) : null}
-                            </div>
-                          ))}
-                          {!learningVersions.length ? (
-                            <div className="empty-version">还没有历史快照，先保存一次文档。</div>
-                          ) : null}
-                        </div>
+                            ))}
+                            {!learningVersions.length ? (
+                              <div className="empty-version">还没有历史快照，先保存一次文档。</div>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </>
