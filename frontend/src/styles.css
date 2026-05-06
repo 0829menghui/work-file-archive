@@ -1538,23 +1538,42 @@ textarea:focus-visible {
 
 .learning-snippet-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #c6d4dc transparent;
 }
 
 .learning-snippet-toolbar button {
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: #eff5f7;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #f1f6f8;
   color: #38505e;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .learning-snippet-toolbar button:hover {
   background: #dfeef2;
   color: var(--accent-strong);
+}
+
+.learning-snippet-toolbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.learning-snippet-toolbar::-webkit-scrollbar-thumb {
+  background: #c6d4dc;
+  border-radius: 999px;
+}
+
+.learning-snippet-toolbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .learning-editor-label {
