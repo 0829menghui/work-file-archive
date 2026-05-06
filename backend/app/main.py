@@ -1034,6 +1034,48 @@ def download_file(file_id: int, version_id: Optional[int] = None, user: dict = D
     return FileResponse(absolute_path, filename=file_row["name"], media_type="application/octet-stream")
 
 
+@app.get("/api/files/batch-download")
+def batch_download_files(file_ids: str, user: dict = Depends(require_user)):
+    raw_ids = [item.strip() for item in (file_ids or "").split(",") if item.strip()]
+    if not raw_ids:
+        raise HTTPException(status_code=400, detail="请选择需要下载的文件")
+    try:
+        ids = [int(item) for item in raw_ids]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="文件参数不正确") from exc
+
+    with get_db() as conn:
+        placeholders = ", ".join("?" for _ in ids)
+        rows = conn.execute(
+            f"""
+            SELECT f.*, fo.name AS folder_name, fv.storage_path
+            FROM files f
+            JOIN folders fo ON fo.id = f.folder_id
+            JOIN file_versions fv ON fv.id = f.current_version_id
+            WHERE f.id IN ({placeholders}) AND f.is_deleted = 0
+            ORDER BY f.updated_at DESC
+            """,
+            ids,
+        ).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        folder_ids = {row["folder_id"] for row in rows}
+        for folder_id in folder_ids:
+            ensure_permission(conn, user, folder_id, ("read",))
+
+    zip_dir = FILES_DIR.parent / "tmp"
+    zip_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = zip_dir / f"{uuid.uuid4().hex}.zip"
+    with ZipFile(zip_path, "w", ZIP_DEFLATED) as archive:
+        for row in rows:
+            source = FILES_DIR.parent / row["storage_path"]
+            if not source.exists():
+                continue
+            archive_name = f"{row['folder_name']}/{row['name']}" if row["folder_name"] else row["name"]
+            archive.write(source, arcname=archive_name)
+    return FileResponse(zip_path, filename="selected-files.zip", media_type="application/zip")
+
+
 @app.get("/api/folders/{folder_id}/download")
 def download_folder(folder_id: int, user: dict = Depends(require_user)):
     with get_db() as conn:
@@ -1118,6 +1160,32 @@ def move_file(file_id: int, payload: dict, user: dict = Depends(require_user)) -
         )
         log_action(conn, user["id"], "move_file", "file", file_id, str(target_folder_id))
         return row_to_dict(conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone())
+
+
+@app.post("/api/files/batch-delete")
+def batch_delete_files(payload: dict, user: dict = Depends(require_user)) -> dict:
+    file_ids = payload.get("file_ids") or []
+    if not file_ids:
+        raise HTTPException(status_code=400, detail="请选择需要删除的文件")
+    try:
+        ids = [int(item) for item in file_ids]
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="文件参数不正确") from exc
+
+    now = utc_now()
+    with get_db() as conn:
+        placeholders = ", ".join("?" for _ in ids)
+        rows = conn.execute(
+            f"SELECT * FROM files WHERE id IN ({placeholders}) AND is_deleted = 0",
+            ids,
+        ).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        for row in rows:
+            ensure_permission(conn, user, row["folder_id"], ("write",))
+            conn.execute("UPDATE files SET is_deleted = 1, updated_at = ? WHERE id = ?", (now, row["id"]))
+            log_action(conn, user["id"], "delete_file", "file", row["id"], row["name"])
+    return {"ok": True, "count": len(rows)}
 
 
 @app.delete("/api/files/{file_id}")

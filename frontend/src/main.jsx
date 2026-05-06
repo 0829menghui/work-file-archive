@@ -614,6 +614,7 @@ function App() {
   const [activeFolder, setActiveFolder] = useState(null);
   const [items, setItems] = useState({ folders: [], files: [] });
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedArchiveIds, setSelectedArchiveIds] = useState([]);
   const [detail, setDetail] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [previewError, setPreviewError] = useState("");
@@ -851,6 +852,10 @@ function App() {
   useEffect(() => {
     if (activeFolder) loadItems(activeFolder.id);
   }, [activeFolder?.id]);
+
+  useEffect(() => {
+    setSelectedArchiveIds((current) => current.filter((id) => items.files.some((file) => file.id === id)));
+  }, [items.files]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -1177,6 +1182,49 @@ function App() {
   function downloadFolder() {
     if (!activeFolder) return;
     window.open(`${API}/folders/${activeFolder.id}/download?token=${encodeURIComponent(token)}`, "_blank");
+  }
+
+  function toggleArchiveSelection(fileId) {
+    setSelectedArchiveIds((current) =>
+      current.includes(fileId) ? current.filter((id) => id !== fileId) : [...current, fileId]
+    );
+  }
+
+  function toggleArchiveSelectAll() {
+    const visibleIds = items.files.map((file) => file.id);
+    if (!visibleIds.length) return;
+    setSelectedArchiveIds((current) =>
+      current.length === visibleIds.length ? [] : visibleIds
+    );
+  }
+
+  function downloadSelectedFiles() {
+    if (!selectedArchiveIds.length) return;
+    const params = new URLSearchParams({
+      token,
+      file_ids: selectedArchiveIds.join(","),
+    });
+    window.open(`${API}/files/batch-download?${params.toString()}`, "_blank");
+  }
+
+  async function deleteSelectedFiles() {
+    if (!canEditActiveModule || !selectedArchiveIds.length) return;
+    if (!window.confirm(`确定批量删除选中的 ${selectedArchiveIds.length} 个文件吗？文件会进入回收站。`)) return;
+    try {
+      const deletingCurrent = selectedFile && selectedArchiveIds.includes(selectedFile.id);
+      const result = await apiFetch(
+        "/files/batch-delete",
+        { method: "POST", body: JSON.stringify({ file_ids: selectedArchiveIds }) },
+        token
+      );
+      await loadItems(activeFolder.id);
+      await loadProjects();
+      if (deletingCurrent) setSelectedFile(null);
+      setSelectedArchiveIds([]);
+      setMessage(`已删除 ${result.count || 0} 个文件`);
+    } catch (err) {
+      showError(err);
+    }
   }
 
   async function deleteFile(file) {
@@ -1927,8 +1975,34 @@ function App() {
                 <span className="readonly-hint">仅查看权限</span>
               )}
             </div>
+            {items.files.length ? (
+              <div className="batch-toolbar">
+                <label className="batch-select-all">
+                  <input
+                    type="checkbox"
+                    checked={selectedArchiveIds.length > 0 && selectedArchiveIds.length === items.files.length}
+                    onChange={toggleArchiveSelectAll}
+                  />
+                  <span>全选当前结果</span>
+                </label>
+                <span className="batch-summary">
+                  {selectedArchiveIds.length ? `已选 ${selectedArchiveIds.length} 个文件` : "还没有选中文件"}
+                </span>
+                <div className="batch-actions">
+                  <button type="button" onClick={downloadSelectedFiles} disabled={!selectedArchiveIds.length}>
+                    批量下载
+                  </button>
+                  {canEditActiveModule ? (
+                    <button type="button" onClick={deleteSelectedFiles} disabled={!selectedArchiveIds.length}>
+                      批量删除
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <div className="table">
               <div className="table-row table-head">
+                <span>选择</span>
                 <span>名称</span>
                 <span>类型</span>
                 <span>大小</span>
@@ -1960,6 +2034,7 @@ function App() {
                     setSelectedFile(null);
                   }}
                 >
+                  <span />
                   <span className="file-name"><Folder size={18} />{folder.name}</span>
                   <span>目录</span>
                   <span>-</span>
@@ -1983,6 +2058,14 @@ function App() {
                   }
                   onClick={() => setSelectedFile(file)}
                 >
+                  <span className="archive-select-cell">
+                    <input
+                      type="checkbox"
+                      checked={selectedArchiveIds.includes(file.id)}
+                      onChange={() => toggleArchiveSelection(file.id)}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  </span>
                   <span className="file-name file-name-stack">
                     <span className="file-name-main"><FileIcon ext={file.extension} />{file.name}</span>
                     {archiveSearch.scope === "project" && file.folder_name ? (
