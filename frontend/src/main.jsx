@@ -2928,7 +2928,6 @@ function App() {
                             <span>分类</span>
                             <input
                               value={learningDraft.category}
-                              readOnly={!showLearningEditor}
                               onChange={(event) =>
                                 setLearningDraft((current) => ({ ...current, category: event.target.value }))
                               }
@@ -2938,7 +2937,6 @@ function App() {
                             <span>状态</span>
                             <select
                               value={learningDraft.status}
-                              disabled={!showLearningEditor}
                               onChange={(event) =>
                                 setLearningDraft((current) => ({ ...current, status: event.target.value }))
                               }
@@ -2953,7 +2951,6 @@ function App() {
                             <span>优先级</span>
                             <select
                               value={learningDraft.priority}
-                              disabled={!showLearningEditor}
                               onChange={(event) =>
                                 setLearningDraft((current) => ({ ...current, priority: event.target.value }))
                               }
@@ -2969,7 +2966,6 @@ function App() {
                           <span>资料链接</span>
                           <input
                             value={learningDraft.resource_url}
-                            readOnly={!showLearningEditor}
                             placeholder="课程、文档、飞书、语雀、GitHub、博客地址"
                             onChange={(event) =>
                               setLearningDraft((current) => ({ ...current, resource_url: event.target.value }))
@@ -3021,63 +3017,24 @@ function App() {
                             ) : null}
                           </div>
                         </label>
-                      </>
-                    ) : (
-                      <div className="learning-read-summary">
-                        <div className="learning-read-meta">
-                          <span className="learning-read-pill">分类：{learningDraft.category || "未分类"}</span>
-                          <span className={`learning-read-pill status-${learningDraft.status || "计划中"}`}>状态：{learningDraft.status || "计划中"}</span>
-                          <span className="learning-read-pill">优先级：{learningDraft.priority || "中"}</span>
-                          {learningDraft.is_pinned ? <span className="learning-read-pill pinned">已置顶</span> : null}
-                        </div>
-                        <div className="learning-read-fields">
-                          <div className="learning-read-field">
-                            <span>资料链接</span>
-                            {learningDraft.resource_url ? (
-                              <a href={learningDraft.resource_url} target="_blank" rel="noreferrer">
-                                {learningDraft.resource_url}
-                              </a>
-                            ) : (
-                              <em>未设置资料链接</em>
-                            )}
-                          </div>
-                          <div className="learning-read-field">
-                            <span>标签</span>
-                            <div className={`learning-tag-display ${currentLearningTags.length ? "" : "empty"}`}>
-                              {currentLearningTags.length ? (
-                                currentLearningTags.map((tag) => (
-                                  <span key={tag} className="learning-tag-chip">#{tag}</span>
-                                ))
-                              ) : (
-                                <span className="learning-tag-empty">未设置标签</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
-                    <div className="learning-editor-body">
-                      <div className="learning-editor-main">
-                        <div className="learning-editor-label">
-                          <strong>正文</strong>
-                          <span>适合写学习笔记、方案、复盘和知识沉淀</span>
-                        </div>
-                        {showLearningEditor ? (
-                          <div className="learning-snippet-toolbar">
-                            <button type="button" onClick={() => insertLearningTemplate("heading1")}>H1</button>
-                            <button type="button" onClick={() => insertLearningTemplate("heading2")}>H2</button>
-                            <button type="button" onClick={() => insertLearningTemplate("list")}>列表</button>
-                            <button type="button" onClick={() => insertLearningTemplate("todo")}>待办</button>
-                            <button type="button" onClick={() => insertLearningTemplate("quote")}>引用</button>
-                            <button type="button" onClick={() => insertLearningTemplate("code")}>代码块</button>
-                            <button type="button" onClick={() => insertLearningTemplate("sql")}>SQL 模板</button>
-                            <button type="button" onClick={() => insertLearningTemplate("table")}>表格</button>
-                          </div>
-                        ) : null}
-                        <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
-                          {showLearningEditor ? (
-                            <>
+                        <div className="learning-editor-body">
+                          <div className="learning-editor-main">
+                            <div className="learning-editor-label">
+                              <strong>正文</strong>
+                              <span>适合写学习笔记、方案、复盘和知识沉淀</span>
+                            </div>
+                            <div className="learning-snippet-toolbar">
+                              <button type="button" onClick={() => insertLearningTemplate("heading1")}>H1</button>
+                              <button type="button" onClick={() => insertLearningTemplate("heading2")}>H2</button>
+                              <button type="button" onClick={() => insertLearningTemplate("list")}>列表</button>
+                              <button type="button" onClick={() => insertLearningTemplate("todo")}>待办</button>
+                              <button type="button" onClick={() => insertLearningTemplate("quote")}>引用</button>
+                              <button type="button" onClick={() => insertLearningTemplate("code")}>代码块</button>
+                              <button type="button" onClick={() => insertLearningTemplate("sql")}>SQL 模板</button>
+                              <button type="button" onClick={() => insertLearningTemplate("table")}>表格</button>
+                            </div>
+                            <div className={`learning-content-workspace ${learningViewMode === "split" ? "split" : ""}`}>
                               <div className="learning-content-card learning-content-card-editor">
                                 <div className="learning-content-card-head">
                                   <strong>编辑区</strong>
@@ -3086,7 +3043,6 @@ function App() {
                                 <textarea
                                   ref={learningContentRef}
                                   value={learningDraft.content}
-                                  readOnly={!showLearningEditor}
                                   placeholder="在这里开始写你的文档..."
                                   onChange={(event) =>
                                     setLearningDraft((current) => ({ ...current, content: event.target.value }))
@@ -3104,60 +3060,134 @@ function App() {
                                   </article>
                                 </div>
                               ) : null}
-                            </>
-                          ) : (
-                            <div
-                              className={`learning-content-card learning-content-card-preview ${canEditActiveModule ? "click-to-edit" : ""}`}
-                              onClick={() => {
-                                if (canEditActiveModule) openLearningEditor("write");
-                              }}
-                            >
-                              <div className="learning-content-card-head">
-                                <strong>阅读视图</strong>
-                                <span>{canEditActiveModule ? "点击正文或上方编辑按钮开始修改" : "当前账号仅可阅读"}</span>
-                              </div>
-                              <article className="learning-content-preview">
-                                {renderLearningContent(learningDraft.content)}
-                              </article>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="learning-version-panel">
-                        <button
-                          type="button"
-                          className="learning-version-panel-head"
-                          onClick={() => setLearningHistoryOpen((current) => !current)}
-                        >
-                          <strong>历史快照</strong>
-                          <span>{learningVersions.length} 个版本，保存后自动沉淀</span>
-                          <em>{learningHistoryOpen ? "收起" : "展开"}</em>
-                        </button>
-                        {learningHistoryOpen ? (
-                          <div className="learning-version-list">
-                            {learningVersions.map((version) => (
-                              <div className="learning-version-row" key={version.id}>
-                                <div>
-                                  <strong>{version.title}</strong>
-                                  <span>
-                                    {version.created_at?.slice(0, 16).replace("T", " ")} · {version.created_by_name || "-"}
-                                  </span>
-                                  <small>{version.category} · {version.status} · {version.priority}优先级</small>
-                                </div>
-                                {canEditActiveModule ? (
-                                  <button type="button" onClick={() => restoreLearningVersion(version)}>
-                                    恢复
-                                  </button>
+                          </div>
+                          <div className="learning-version-panel">
+                            <button
+                              type="button"
+                              className="learning-version-panel-head"
+                              onClick={() => setLearningHistoryOpen((current) => !current)}
+                            >
+                              <strong>历史快照</strong>
+                              <span>{learningVersions.length} 个版本，保存后自动沉淀</span>
+                              <em>{learningHistoryOpen ? "收起" : "展开"}</em>
+                            </button>
+                            {learningHistoryOpen ? (
+                              <div className="learning-version-list">
+                                {learningVersions.map((version) => (
+                                  <div className="learning-version-row" key={version.id}>
+                                    <div>
+                                      <strong>{version.title}</strong>
+                                      <span>
+                                        {version.created_at?.slice(0, 16).replace("T", " ")} · {version.created_by_name || "-"}
+                                      </span>
+                                      <small>{version.category} · {version.status} · {version.priority}优先级</small>
+                                    </div>
+                                    <button type="button" onClick={() => restoreLearningVersion(version)}>
+                                      恢复
+                                    </button>
+                                  </div>
+                                ))}
+                                {!learningVersions.length ? (
+                                  <div className="empty-version">还没有历史快照，先保存一次文档。</div>
                                 ) : null}
                               </div>
-                            ))}
-                            {!learningVersions.length ? (
-                              <div className="empty-version">还没有历史快照，先保存一次文档。</div>
                             ) : null}
                           </div>
-                        ) : null}
-                      </div>
-                    </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="learning-read-summary">
+                          <div className="learning-read-meta">
+                            <span className="learning-read-pill">分类：{learningDraft.category || "未分类"}</span>
+                            <span className={`learning-read-pill status-${learningDraft.status || "计划中"}`}>状态：{learningDraft.status || "计划中"}</span>
+                            <span className="learning-read-pill">优先级：{learningDraft.priority || "中"}</span>
+                            {learningDraft.is_pinned ? <span className="learning-read-pill pinned">已置顶</span> : null}
+                          </div>
+                          <div className="learning-read-fields">
+                            <div className="learning-read-field">
+                              <span>资料链接</span>
+                              {learningDraft.resource_url ? (
+                                <a href={learningDraft.resource_url} target="_blank" rel="noreferrer">
+                                  {learningDraft.resource_url}
+                                </a>
+                              ) : (
+                                <em>未设置资料链接</em>
+                              )}
+                            </div>
+                            <div className="learning-read-field">
+                              <span>标签</span>
+                              <div className={`learning-tag-display ${currentLearningTags.length ? "" : "empty"}`}>
+                                {currentLearningTags.length ? (
+                                  currentLearningTags.map((tag) => (
+                                    <span key={tag} className="learning-tag-chip">#{tag}</span>
+                                  ))
+                                ) : (
+                                  <span className="learning-tag-empty">未设置标签</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="learning-reading-body">
+                          <div className="learning-editor-label">
+                            <strong>正文</strong>
+                            <span>适合写学习笔记、方案、复盘和知识沉淀</span>
+                          </div>
+                          <div
+                            className={`learning-content-card learning-content-card-preview learning-reading-card ${canEditActiveModule ? "click-to-edit" : ""}`}
+                            onClick={() => {
+                              if (canEditActiveModule) openLearningEditor("write");
+                            }}
+                          >
+                            <div className="learning-content-card-head">
+                              <strong>阅读视图</strong>
+                              <span>{canEditActiveModule ? "点击正文或上方编辑按钮开始修改" : "当前账号仅可阅读"}</span>
+                            </div>
+                            <article className="learning-content-preview">
+                              {renderLearningContent(learningDraft.content)}
+                            </article>
+                          </div>
+                        </div>
+
+                        <div className="learning-version-panel">
+                          <button
+                            type="button"
+                            className="learning-version-panel-head"
+                            onClick={() => setLearningHistoryOpen((current) => !current)}
+                          >
+                            <strong>历史快照</strong>
+                            <span>{learningVersions.length} 个版本，保存后自动沉淀</span>
+                            <em>{learningHistoryOpen ? "收起" : "展开"}</em>
+                          </button>
+                          {learningHistoryOpen ? (
+                            <div className="learning-version-list">
+                              {learningVersions.map((version) => (
+                                <div className="learning-version-row" key={version.id}>
+                                  <div>
+                                    <strong>{version.title}</strong>
+                                    <span>
+                                      {version.created_at?.slice(0, 16).replace("T", " ")} · {version.created_by_name || "-"}
+                                    </span>
+                                    <small>{version.category} · {version.status} · {version.priority}优先级</small>
+                                  </div>
+                                  {canEditActiveModule ? (
+                                    <button type="button" onClick={() => restoreLearningVersion(version)}>
+                                      恢复
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ))}
+                              {!learningVersions.length ? (
+                                <div className="empty-version">还没有历史快照，先保存一次文档。</div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
                   </>
                 ) : selectedLearningItem?.item_type === "folder" ? (
                   <div className="learning-editor-empty folder-state">

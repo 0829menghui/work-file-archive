@@ -1770,6 +1770,11 @@ textarea:focus-visible {
   min-height: 0;
 }
 
+.learning-reading-body {
+  display: grid;
+  gap: 12px;
+}
+
 .learning-snippet-toolbar {
   display: flex;
   gap: 6px;
@@ -1856,6 +1861,10 @@ textarea:focus-visible {
   box-shadow: 0 8px 22px rgba(27, 49, 64, 0.05);
 }
 
+.learning-reading-card {
+  background: linear-gradient(180deg, #ffffff, #fcfdfe);
+}
+
 .learning-content-card-head {
   min-height: 28px;
   display: flex;
@@ -1902,6 +1911,11 @@ textarea:focus-visible {
   color: #263442;
   line-height: 1.8;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.learning-reading-card .learning-content-preview {
+  min-height: 180px;
+  padding: 28px 32px;
 }
 
 .learning-content-preview h2,
@@ -2028,6 +2042,7 @@ textarea:focus-visible {
   border-top: 1px solid var(--line-soft);
   padding-top: 16px;
   align-content: start;
+  min-height: 0;
 }
 
 .learning-version-panel-head {
@@ -2043,6 +2058,10 @@ textarea:focus-visible {
 
 .learning-version-panel:not(:has(.learning-version-list)) {
   gap: 0;
+}
+
+.learning-version-panel:not(:has(.learning-version-list)) .learning-version-panel-head {
+  padding-bottom: 0;
 }
 
 .learning-version-panel-head span {
