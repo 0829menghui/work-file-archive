@@ -199,6 +199,15 @@ PREVIEW_MEDIA_TYPES = {
     "mov": "video/quicktime",
 }
 
+ARCHIVE_KIND_GROUPS = {
+    "image": {"png", "jpg", "jpeg", "webp", "gif", "svg", "tif", "tiff", "exr", "hdr", "psd"},
+    "video": {"mp4", "webm", "mov", "avi"},
+    "doc": {"pdf", "txt", "md", "markdown", "docx", "xlsx", "sql", "json", "csv", "tsv"},
+    "archive": {"zip", "rar", "7z"},
+    "model": {"blend", "max", "ma", "mb", "c4d", "fbx", "obj", "gltf", "glb", "stl", "dae", "abc", "usd", "usdz", "skp", "spp", "sbsar"},
+    "cad": {"dwg", "dxf", "step", "stp", "iges", "igs"},
+}
+
 
 def save_upload(upload: UploadFile) -> tuple[str, int, str]:
     ext = extension_of(upload.filename or "")
@@ -746,32 +755,55 @@ def folder_items(
     folder_id: int,
     q: str = "",
     kind: str = "",
+    scope: str = "folder",
     user: dict = Depends(require_user),
 ) -> dict:
     with get_db() as conn:
         ensure_permission(conn, user, folder_id, ("read",))
-        folders = conn.execute(
-            """
-            SELECT * FROM folders
-            WHERE parent_id = ? AND is_deleted = 0
-            ORDER BY name COLLATE NOCASE
-            """,
+        current_folder = conn.execute(
+            "SELECT * FROM folders WHERE id = ? AND is_deleted = 0",
             (folder_id,),
-        ).fetchall()
-        filters = ["f.folder_id = ?", "f.is_deleted = 0"]
-        params: list = [folder_id]
+        ).fetchone()
+        if not current_folder:
+            raise HTTPException(status_code=404, detail="目录不存在")
+
+        folders = []
+        filters = ["f.is_deleted = 0"]
+        params: list = []
+        if scope == "project":
+            filters.append("f.project_id = ?")
+            params.append(current_folder["project_id"])
+        else:
+            folders = conn.execute(
+                """
+                SELECT * FROM folders
+                WHERE parent_id = ? AND is_deleted = 0
+                ORDER BY name COLLATE NOCASE
+                """,
+                (folder_id,),
+            ).fetchall()
+            filters.append("f.folder_id = ?")
+            params.append(folder_id)
         if q:
             filters.append("f.name LIKE ?")
             params.append(f"%{q}%")
         if kind:
-            filters.append("f.extension = ?")
-            params.append(kind.lower().lstrip("."))
+            normalized_kind = kind.lower().lstrip(".")
+            group = ARCHIVE_KIND_GROUPS.get(normalized_kind)
+            if group:
+                placeholders = ", ".join("?" for _ in group)
+                filters.append(f"f.extension IN ({placeholders})")
+                params.extend(sorted(group))
+            elif normalized_kind != "all":
+                filters.append("f.extension = ?")
+                params.append(normalized_kind)
         files = conn.execute(
             f"""
-            SELECT f.*, u.display_name AS created_by_name, fv.version_no
+            SELECT f.*, u.display_name AS created_by_name, fv.version_no, fo.name AS folder_name
             FROM files f
             LEFT JOIN users u ON u.id = f.created_by
             LEFT JOIN file_versions fv ON fv.id = f.current_version_id
+            LEFT JOIN folders fo ON fo.id = f.folder_id
             WHERE {' AND '.join(filters)}
             ORDER BY f.updated_at DESC
             """,

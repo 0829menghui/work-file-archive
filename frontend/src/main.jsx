@@ -125,16 +125,21 @@ function normalizeLearningItem(item) {
   };
 }
 
-function filterLearningTree(nodes, query) {
-  const keyword = query.trim().toLowerCase();
-  if (!keyword) return nodes;
+function filterLearningTree(nodes, filters) {
+  const keyword = (filters.query || "").trim().toLowerCase();
+  const status = filters.status || "all";
+  const itemType = filters.itemType || "all";
+  if (!keyword && status === "all" && itemType === "all") return nodes;
   return nodes
     .map((node) => {
-      const children = filterLearningTree(node.children || [], query);
+      const children = filterLearningTree(node.children || [], filters);
       const matched = `${node.title} ${node.category} ${node.content} ${node.resource_url || ""}`
         .toLowerCase()
         .includes(keyword);
-      if (matched || children.length) return { ...node, children };
+      const statusMatched = status === "all" || node.status === status;
+      const typeMatched = itemType === "all" || node.item_type === itemType;
+      const selfMatched = (!keyword || matched) && statusMatched && typeMatched;
+      if (selfMatched || children.length) return { ...node, children };
       return null;
     })
     .filter(Boolean);
@@ -612,12 +617,20 @@ function App() {
   const [detail, setDetail] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [previewError, setPreviewError] = useState("");
-  const [query, setQuery] = useState("");
+  const [archiveSearch, setArchiveSearch] = useState({
+    query: "",
+    kind: "all",
+    scope: "folder",
+  });
   const [message, setMessage] = useState("");
   const [trashOpen, setTrashOpen] = useState(false);
   const [trash, setTrash] = useState([]);
   const [learningItems, setLearningItems] = useState([]);
-  const [learningQuery, setLearningQuery] = useState("");
+  const [learningFilters, setLearningFilters] = useState({
+    query: "",
+    status: "all",
+    itemType: "all",
+  });
   const [selectedLearningId, setSelectedLearningId] = useState(null);
   const [selectedLearningIds, setSelectedLearningIds] = useState([]);
   const [learningDraft, setLearningDraft] = useState(() => buildLearningDraft());
@@ -674,8 +687,8 @@ function App() {
   );
   const learningTree = useMemo(() => buildLearningTree(learningItems), [learningItems]);
   const filteredLearningTree = useMemo(
-    () => filterLearningTree(learningTree, learningQuery),
-    [learningTree, learningQuery]
+    () => filterLearningTree(learningTree, learningFilters),
+    [learningTree, learningFilters]
   );
   const selectedLearningItem = useMemo(
     () => learningItems.find((item) => item.id === selectedLearningId) || null,
@@ -926,9 +939,13 @@ function App() {
     }
   }
 
-  async function loadItems(folderId, q = query) {
+  async function loadItems(folderId, search = archiveSearch) {
     try {
-      const suffix = q ? `?q=${encodeURIComponent(q)}` : "";
+      const params = new URLSearchParams();
+      if (search.query) params.set("q", search.query);
+      if (search.kind && search.kind !== "all") params.set("kind", search.kind);
+      if (search.scope && search.scope !== "folder") params.set("scope", search.scope);
+      const suffix = params.size ? `?${params.toString()}` : "";
       const data = await apiFetch(`/folders/${folderId}/items${suffix}`, {}, token);
       setItems(data);
     } catch (err) {
@@ -1685,17 +1702,37 @@ function App() {
               <div className="searchbox learning-search">
                 <Search size={16} />
                 <input
-                  value={learningQuery}
+                  value={learningFilters.query}
                   placeholder="搜索文档"
-                  onChange={(event) => setLearningQuery(event.target.value)}
+                  onChange={(event) => setLearningFilters((current) => ({ ...current, query: event.target.value }))}
                 />
+              </div>
+              <div className="learning-filter-row compact">
+                <select
+                  value={learningFilters.status}
+                  onChange={(event) => setLearningFilters((current) => ({ ...current, status: event.target.value }))}
+                >
+                  <option value="all">全部状态</option>
+                  <option value="计划中">计划中</option>
+                  <option value="进行中">进行中</option>
+                  <option value="已完成">已完成</option>
+                  <option value="暂停">暂停</option>
+                </select>
+                <select
+                  value={learningFilters.itemType}
+                  onChange={(event) => setLearningFilters((current) => ({ ...current, itemType: event.target.value }))}
+                >
+                  <option value="all">全部内容</option>
+                  <option value="doc">仅文档</option>
+                  <option value="folder">仅文件夹</option>
+                </select>
               </div>
               <div className="learning-category-strip compact">
                 {learningCategories.map((item) => (
                   <button
                     key={item}
                     type="button"
-                    onClick={() => setLearningQuery(item)}
+                    onClick={() => setLearningFilters((current) => ({ ...current, query: item }))}
                   >
                     {item}
                   </button>
@@ -1768,14 +1805,43 @@ function App() {
                 <div className="searchbox">
                   <Search size={16} />
                   <input
-                    value={query}
-                    placeholder="搜索当前目录文件"
-                    onChange={(event) => setQuery(event.target.value)}
+                    value={archiveSearch.query}
+                    placeholder={archiveSearch.scope === "project" ? "搜索整个项目文件" : "搜索当前目录文件"}
+                    onChange={(event) => setArchiveSearch((current) => ({ ...current, query: event.target.value }))}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && activeFolder) loadItems(activeFolder.id);
                     }}
                   />
                 </div>
+                <select
+                  className="toolbar-select"
+                  value={archiveSearch.scope}
+                  onChange={(event) => {
+                    const next = { ...archiveSearch, scope: event.target.value };
+                    setArchiveSearch(next);
+                    if (activeFolder) loadItems(activeFolder.id, next);
+                  }}
+                >
+                  <option value="folder">当前目录</option>
+                  <option value="project">整个项目</option>
+                </select>
+                <select
+                  className="toolbar-select"
+                  value={archiveSearch.kind}
+                  onChange={(event) => {
+                    const next = { ...archiveSearch, kind: event.target.value };
+                    setArchiveSearch(next);
+                    if (activeFolder) loadItems(activeFolder.id, next);
+                  }}
+                >
+                  <option value="all">全部类型</option>
+                  <option value="model">3D 模型</option>
+                  <option value="cad">工程图/CAD</option>
+                  <option value="image">图片贴图</option>
+                  <option value="video">视频预览</option>
+                  <option value="doc">文档文本</option>
+                  <option value="archive">压缩包</option>
+                </select>
                 <IconButton label="刷新" onClick={() => activeFolder && loadItems(activeFolder.id)}>
                   <RefreshCw size={17} />
                 </IconButton>
@@ -1831,7 +1897,11 @@ function App() {
             <div className="pane-head">
               <div>
                 <strong>文件</strong>
-                <span>{items.files.length} 个文件，{items.folders.length} 个子目录</span>
+                <span>
+                  {archiveSearch.scope === "project"
+                    ? `当前项目搜到 ${items.files.length} 个文件`
+                    : `${items.files.length} 个文件，${items.folders.length} 个子目录`}
+                </span>
               </div>
               {canEditActiveModule ? (
               <div className="upload-actions">
@@ -1913,7 +1983,12 @@ function App() {
                   }
                   onClick={() => setSelectedFile(file)}
                 >
-                  <span className="file-name"><FileIcon ext={file.extension} />{file.name}</span>
+                  <span className="file-name file-name-stack">
+                    <span className="file-name-main"><FileIcon ext={file.extension} />{file.name}</span>
+                    {archiveSearch.scope === "project" && file.folder_name ? (
+                      <small className="file-location-tag">{file.folder_name}</small>
+                    ) : null}
+                  </span>
                   <span>.{file.extension || "file"}</span>
                   <span>{formatSize(file.size)}</span>
                   <span>v{file.version_no || 1}</span>
@@ -2086,10 +2161,30 @@ function App() {
                   <div className="searchbox learning-search">
                     <Search size={16} />
                     <input
-                      value={learningQuery}
+                      value={learningFilters.query}
                       placeholder="搜索标题、分类、正文、链接"
-                      onChange={(event) => setLearningQuery(event.target.value)}
+                      onChange={(event) => setLearningFilters((current) => ({ ...current, query: event.target.value }))}
                     />
+                  </div>
+                  <div className="learning-filter-row">
+                    <select
+                      value={learningFilters.status}
+                      onChange={(event) => setLearningFilters((current) => ({ ...current, status: event.target.value }))}
+                    >
+                      <option value="all">全部状态</option>
+                      <option value="计划中">计划中</option>
+                      <option value="进行中">进行中</option>
+                      <option value="已完成">已完成</option>
+                      <option value="暂停">暂停</option>
+                    </select>
+                    <select
+                      value={learningFilters.itemType}
+                      onChange={(event) => setLearningFilters((current) => ({ ...current, itemType: event.target.value }))}
+                    >
+                      <option value="all">全部内容</option>
+                      <option value="doc">仅文档</option>
+                      <option value="folder">仅文件夹</option>
+                    </select>
                   </div>
                 </div>
                 <div className="learning-category-strip">
@@ -2099,7 +2194,7 @@ function App() {
                       <button
                         key={item}
                         type="button"
-                        onClick={() => setLearningQuery(item)}
+                        onClick={() => setLearningFilters((current) => ({ ...current, query: item }))}
                       >
                         {item}
                       </button>
