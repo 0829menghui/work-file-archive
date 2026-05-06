@@ -930,8 +930,8 @@ textarea:focus-visible {
 
 .learning-mini-section {
   display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 8px 10px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: #f8fbfc;
@@ -946,6 +946,8 @@ textarea:focus-visible {
 .learning-mini-list {
   display: grid;
   gap: 6px;
+  max-height: 92px;
+  overflow: auto;
 }
 
 .learning-mini-list button {
@@ -988,7 +990,7 @@ textarea:focus-visible {
 .learning-sidebar {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
-  padding: 14px;
+  padding: 12px;
 }
 
 .learning-resizer {
@@ -1065,8 +1067,13 @@ textarea:focus-visible {
 
 .learning-category-strip div {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #c6d4dc transparent;
 }
 
 .learning-category-strip button {
@@ -1092,6 +1099,7 @@ textarea:focus-visible {
 .learning-category-strip.compact button {
   min-height: 28px;
   padding: 0 9px;
+  flex: 0 0 auto;
 }
 
 .learning-filter-row {
@@ -1376,7 +1384,7 @@ textarea:focus-visible {
 
 .learning-editor-pane {
   display: grid;
-  grid-template-rows: auto auto auto minmax(520px, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 14px;
   padding: 20px 22px 22px;
   overflow: hidden;
@@ -1529,6 +1537,38 @@ textarea:focus-visible {
 
 .learning-link-field {
   margin-top: -2px;
+}
+
+.learning-tag-display {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d9e4ea;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.learning-tag-display.empty {
+  color: var(--muted);
+}
+
+.learning-tag-chip {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #e9f5f7;
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.learning-tag-empty {
+  font-size: 13px;
 }
 
 .learning-editor-body {

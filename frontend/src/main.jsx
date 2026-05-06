@@ -644,6 +644,13 @@ function buildProjectDraft(item) {
   };
 }
 
+function parseLearningTags(tags = "") {
+  return tags
+    .split(/[,\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function nowTimeLabel() {
   return new Date().toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -771,9 +778,7 @@ function App() {
     new Set(
       learningItems
         .filter((item) => item.item_type !== "folder")
-        .flatMap((item) => (item.tags || "").split(/[,\n]/))
-        .map((item) => item.trim())
-        .filter(Boolean)
+        .flatMap((item) => parseLearningTags(item.tags || ""))
     )
   );
   const learningTree = useMemo(() => buildLearningTree(learningItems), [learningItems]);
@@ -845,6 +850,10 @@ function App() {
         .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
         .slice(0, 6),
     [learningItems]
+  );
+  const currentLearningTags = useMemo(
+    () => parseLearningTags(learningDraft.tags || ""),
+    [learningDraft.tags]
   );
   const learningPinnedDocs = useMemo(
     () =>
@@ -3025,14 +3034,26 @@ function App() {
                     </label>
                     <label className="learning-link-field">
                       <span>标签</span>
-                      <input
-                        value={learningDraft.tags}
-                        readOnly={!showLearningEditor}
-                        placeholder="用英文逗号分隔，比如 SQL, Flink, 指标体系"
-                        onChange={(event) =>
-                          setLearningDraft((current) => ({ ...current, tags: event.target.value }))
-                        }
-                      />
+                      {showLearningEditor ? (
+                        <input
+                          value={learningDraft.tags}
+                          readOnly={!showLearningEditor}
+                          placeholder="用英文逗号分隔，比如 SQL, Flink, 指标体系"
+                          onChange={(event) =>
+                            setLearningDraft((current) => ({ ...current, tags: event.target.value }))
+                          }
+                        />
+                      ) : (
+                        <div className={`learning-tag-display ${currentLearningTags.length ? "" : "empty"}`}>
+                          {currentLearningTags.length ? (
+                            currentLearningTags.map((tag) => (
+                              <span key={tag} className="learning-tag-chip">#{tag}</span>
+                            ))
+                          ) : (
+                            <span className="learning-tag-empty">未设置标签</span>
+                          )}
+                        </div>
+                      )}
                     </label>
 
                     <div className="learning-editor-body">
