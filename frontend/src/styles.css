@@ -1694,10 +1694,14 @@ textarea:focus-visible {
 
 .learning-editor-body {
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  gap: 18px;
+}
+
+.learning-editor-main {
+  display: grid;
   gap: 12px;
+  min-height: 0;
 }
 
 .learning-snippet-toolbar {
@@ -1705,7 +1709,7 @@ textarea:focus-visible {
   gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 2px 8px;
+  padding: 0 0 4px;
   scrollbar-width: thin;
   scrollbar-color: #c6d4dc transparent;
 }
@@ -1751,27 +1755,30 @@ textarea:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
+  gap: 14px;
 }
 
 .learning-content-workspace.split {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
 }
 
 .learning-content-card {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 8px;
+  grid-template-rows: auto auto;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border: 1px solid #e1e8ed;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .learning-content-card-editor {
-  min-height: 320px;
-  grid-template-rows: auto auto;
+  min-height: 0;
 }
 
 .learning-content-card-preview {
-  min-height: 320px;
+  min-height: 0;
 }
 
 .learning-content-card-preview.click-to-edit {
@@ -1797,8 +1804,8 @@ textarea:focus-visible {
 
 .learning-editor-body textarea {
   width: 100%;
-  min-height: 260px;
-  height: auto;
+  min-height: 360px;
+  height: 360px;
   resize: vertical;
   border: 1px solid #d4e0e8;
   border-radius: 8px;
@@ -1816,7 +1823,8 @@ textarea:focus-visible {
 .learning-content-preview {
   min-height: 0;
   overflow: auto;
-  padding: 28px 32px;
+  min-height: 360px;
+  padding: 24px 28px;
   border: 1px solid #e3eaee;
   border-radius: 8px;
   background: linear-gradient(180deg, #ffffff, #fbfcfd);
@@ -1945,18 +1953,19 @@ textarea:focus-visible {
 .learning-version-panel {
   display: grid;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 0;
   border-top: 1px solid var(--line-soft);
-  padding-top: 12px;
+  padding-top: 16px;
+  align-content: start;
 }
 
 .learning-version-panel-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  padding: 0;
+  padding: 0 0 2px;
   background: transparent;
   text-align: left;
 }
@@ -1976,6 +1985,7 @@ textarea:focus-visible {
 .learning-version-list {
   display: grid;
   gap: 8px;
+  margin-top: 2px;
 }
 
 .learning-version-row {

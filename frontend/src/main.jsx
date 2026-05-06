@@ -3029,68 +3029,70 @@ function App() {
                     </label>
 
                     <div className="learning-editor-body">
-                      <div className="learning-editor-label">
-                        <strong>正文</strong>
-                        <span>适合写学习笔记、方案、复盘和知识沉淀</span>
-                      </div>
-                      {showLearningEditor ? (
-                        <div className="learning-snippet-toolbar">
-                          <button type="button" onClick={() => insertLearningTemplate("heading1")}>H1</button>
-                          <button type="button" onClick={() => insertLearningTemplate("heading2")}>H2</button>
-                          <button type="button" onClick={() => insertLearningTemplate("list")}>列表</button>
-                          <button type="button" onClick={() => insertLearningTemplate("todo")}>待办</button>
-                          <button type="button" onClick={() => insertLearningTemplate("quote")}>引用</button>
-                          <button type="button" onClick={() => insertLearningTemplate("code")}>代码块</button>
-                          <button type="button" onClick={() => insertLearningTemplate("sql")}>SQL 模板</button>
-                          <button type="button" onClick={() => insertLearningTemplate("table")}>表格</button>
+                      <div className="learning-editor-main">
+                        <div className="learning-editor-label">
+                          <strong>正文</strong>
+                          <span>适合写学习笔记、方案、复盘和知识沉淀</span>
                         </div>
-                      ) : null}
-                        <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
                         {showLearningEditor ? (
-                        <>
-                          <div className="learning-content-card learning-content-card-editor">
-                            <div className="learning-content-card-head">
-                              <strong>编辑区</strong>
-                              <span>{learningViewMode === "split" ? "左侧编写，右侧即时预览" : "支持 Ctrl/Cmd + S 保存"}</span>
-                            </div>
-                            <textarea
-                              ref={learningContentRef}
-                              value={learningDraft.content}
-                              readOnly={!showLearningEditor}
-                              placeholder="在这里开始写你的文档..."
-                              onChange={(event) =>
-                                setLearningDraft((current) => ({ ...current, content: event.target.value }))
-                              }
-                            />
+                          <div className="learning-snippet-toolbar">
+                            <button type="button" onClick={() => insertLearningTemplate("heading1")}>H1</button>
+                            <button type="button" onClick={() => insertLearningTemplate("heading2")}>H2</button>
+                            <button type="button" onClick={() => insertLearningTemplate("list")}>列表</button>
+                            <button type="button" onClick={() => insertLearningTemplate("todo")}>待办</button>
+                            <button type="button" onClick={() => insertLearningTemplate("quote")}>引用</button>
+                            <button type="button" onClick={() => insertLearningTemplate("code")}>代码块</button>
+                            <button type="button" onClick={() => insertLearningTemplate("sql")}>SQL 模板</button>
+                            <button type="button" onClick={() => insertLearningTemplate("table")}>表格</button>
                           </div>
-                          {learningViewMode === "split" ? (
-                            <div className="learning-content-card learning-content-card-preview">
+                        ) : null}
+                        <div className={`learning-content-workspace ${showLearningEditor && learningViewMode === "split" ? "split" : ""}`}>
+                          {showLearningEditor ? (
+                            <>
+                              <div className="learning-content-card learning-content-card-editor">
+                                <div className="learning-content-card-head">
+                                  <strong>编辑区</strong>
+                                  <span>{learningViewMode === "split" ? "左侧编写，右侧即时预览" : "支持 Ctrl/Cmd + S 保存"}</span>
+                                </div>
+                                <textarea
+                                  ref={learningContentRef}
+                                  value={learningDraft.content}
+                                  readOnly={!showLearningEditor}
+                                  placeholder="在这里开始写你的文档..."
+                                  onChange={(event) =>
+                                    setLearningDraft((current) => ({ ...current, content: event.target.value }))
+                                  }
+                                />
+                              </div>
+                              {learningViewMode === "split" ? (
+                                <div className="learning-content-card learning-content-card-preview">
+                                  <div className="learning-content-card-head">
+                                    <strong>即时预览</strong>
+                                    <span>边写边看排版效果</span>
+                                  </div>
+                                  <article className="learning-content-preview">
+                                    {renderLearningContent(learningDraft.content)}
+                                  </article>
+                                </div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <div
+                              className={`learning-content-card learning-content-card-preview ${canEditActiveModule ? "click-to-edit" : ""}`}
+                              onClick={() => {
+                                if (canEditActiveModule) openLearningEditor("write");
+                              }}
+                            >
                               <div className="learning-content-card-head">
-                                <strong>即时预览</strong>
-                                <span>边写边看排版效果</span>
+                                <strong>阅读视图</strong>
+                                <span>{canEditActiveModule ? "点击正文或上方编辑按钮开始修改" : "当前账号仅可阅读"}</span>
                               </div>
                               <article className="learning-content-preview">
                                 {renderLearningContent(learningDraft.content)}
                               </article>
                             </div>
-                          ) : null}
-                        </>
-                        ) : (
-                        <div
-                          className={`learning-content-card learning-content-card-preview ${canEditActiveModule ? "click-to-edit" : ""}`}
-                          onClick={() => {
-                            if (canEditActiveModule) openLearningEditor("write");
-                          }}
-                        >
-                          <div className="learning-content-card-head">
-                            <strong>阅读视图</strong>
-                            <span>{canEditActiveModule ? "点击正文或上方编辑按钮开始修改" : "当前账号仅可阅读"}</span>
-                          </div>
-                          <article className="learning-content-preview">
-                            {renderLearningContent(learningDraft.content)}
-                          </article>
+                          )}
                         </div>
-                        )}
                       </div>
                       <div className="learning-version-panel">
                         <button
