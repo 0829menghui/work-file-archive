@@ -825,16 +825,6 @@ textarea:focus-visible {
   padding: 18px 22px 22px;
 }
 
-.learning-page .learning-workspace {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
-.learning-page .learning-sidebar,
-.learning-page .learning-resizer {
-  display: none;
-}
-
 .module-page-head,
 .admin-create,
 .admin-user-row {
