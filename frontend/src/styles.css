@@ -1770,6 +1770,36 @@ textarea:focus-visible {
   min-height: 0;
 }
 
+.learning-edit-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.learning-edit-body {
+  display: grid;
+  gap: 12px;
+}
+
+.learning-edit-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.learning-edit-workspace.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.learning-edit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border: 1px solid #e1e8ed;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
 .learning-reading-body {
   display: grid;
   gap: 12px;
@@ -1895,7 +1925,25 @@ textarea:focus-visible {
   font: 15px/1.8 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
+.learning-edit-card textarea {
+  width: 100%;
+  min-height: 360px;
+  height: 360px;
+  resize: vertical;
+  border: 1px solid #d4e0e8;
+  border-radius: 8px;
+  padding: 18px;
+  color: #263442;
+  background: #fbfdfe;
+  font: 15px/1.8 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
 .learning-editor-body textarea:focus-visible {
+  outline: 2px solid rgba(35, 125, 142, 0.18);
+  border-color: #7bb8c2;
+}
+
+.learning-edit-card textarea:focus-visible {
   outline: 2px solid rgba(35, 125, 142, 0.18);
   border-color: #7bb8c2;
 }
