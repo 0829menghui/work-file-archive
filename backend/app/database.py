@@ -226,6 +226,12 @@ def init_db() -> None:
             conn.execute("ALTER TABLE learning_items ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
         if "is_pinned" not in learning_columns:
             conn.execute("ALTER TABLE learning_items ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0")
+        learning_version_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(learning_versions)").fetchall()
+        }
+        if "tags" not in learning_version_columns:
+            conn.execute("ALTER TABLE learning_versions ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
         conn.execute(
             """
             UPDATE learning_items
