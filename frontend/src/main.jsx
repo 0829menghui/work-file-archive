@@ -874,23 +874,24 @@ function App() {
     () => parseLearningTags(learningDraft.tags || ""),
     [learningDraft.tags]
   );
+  const availableLearningTagChoices = useMemo(
+    () => learningSidebarTags.filter((tag) => !currentLearningTags.includes(tag)),
+    [learningSidebarTags, currentLearningTags]
+  );
   const normalizedLearningTagInput = useMemo(
     () => learningTagInput.trim().replace(/^#/, ""),
     [learningTagInput]
   );
   const filteredLearningTagSuggestions = useMemo(() => {
     const keyword = normalizedLearningTagInput.toLowerCase();
-    return learningTags
-      .filter((tag) => !currentLearningTags.includes(tag))
+    return availableLearningTagChoices
       .filter((tag) => !keyword || tag.toLowerCase().includes(keyword))
-      .slice(0, 10);
-  }, [learningTags, currentLearningTags, normalizedLearningTagInput]);
+      .slice(0, 16);
+  }, [availableLearningTagChoices, normalizedLearningTagInput]);
   const exactLearningTagMatch = useMemo(
     () =>
-      learningTags.find(
-        (tag) => !currentLearningTags.includes(tag) && tag.toLowerCase() === normalizedLearningTagInput.toLowerCase()
-      ) || "",
-    [learningTags, currentLearningTags, normalizedLearningTagInput]
+      availableLearningTagChoices.find((tag) => tag.toLowerCase() === normalizedLearningTagInput.toLowerCase()) || "",
+    [availableLearningTagChoices, normalizedLearningTagInput]
   );
   const learningPinnedDocs = useMemo(
     () =>
@@ -1865,7 +1866,7 @@ function App() {
   function addLearningTag(tag) {
     const value = (tag || "").trim().replace(/^#/, "");
     if (!value) return;
-    if (!learningTags.some((item) => item.toLowerCase() === value.toLowerCase())) {
+    if (!learningSidebarTags.some((item) => item.toLowerCase() === value.toLowerCase())) {
       setMessage("这里只能选择已有标签");
       window.setTimeout(() => setMessage(""), 2200);
       return;
@@ -3068,7 +3069,7 @@ function App() {
                                 <input
                                   className="learning-tag-input"
                                   value={learningTagInput}
-                                  placeholder="选择已有标签"
+                                  placeholder="筛选已有标签"
                                   onFocus={() => setLearningTagSuggestOpen(true)}
                                   onBlur={() => window.setTimeout(() => setLearningTagSuggestOpen(false), 120)}
                                   onChange={(event) => {
@@ -3077,34 +3078,11 @@ function App() {
                                   }}
                                   onKeyDown={handleLearningTagInputKeyDown}
                                 />
-                                {learningTagSuggestOpen && filteredLearningTagSuggestions.length ? (
-                                  <div className="learning-tag-dropdown">
-                                    {filteredLearningTagSuggestions.map((tag) => (
-                                      <button
-                                        key={`suggest-${tag}`}
-                                        type="button"
-                                        onMouseDown={(event) => event.preventDefault()}
-                                        onClick={() => addLearningTag(tag)}
-                                      >
-                                        #{tag}
-                                      </button>
-                                    ))}
-                                  </div>
-                                ) : null}
                               </div>
-                              <button
-                                type="button"
-                                className="learning-tag-add"
-                                disabled={!exactLearningTagMatch}
-                                title={exactLearningTagMatch ? `添加标签 ${exactLearningTagMatch}` : "这里只能选择已有标签"}
-                                onClick={() => addLearningTag(exactLearningTagMatch)}
-                              >
-                                添加
-                              </button>
                             </div>
                             {filteredLearningTagSuggestions.length ? (
                               <div className="learning-tag-picker">
-                                <span>可选标签</span>
+                                <span>{normalizedLearningTagInput ? "匹配标签" : "可选标签"}</span>
                                 <div className="learning-tag-suggestions">
                                   {filteredLearningTagSuggestions.map((tag) => (
                                     <button key={`pick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
@@ -3113,7 +3091,15 @@ function App() {
                                   ))}
                                 </div>
                               </div>
-                            ) : null}
+                            ) : availableLearningTagChoices.length ? (
+                              <div className="learning-tag-picker">
+                                <span>没有匹配项，请从已有标签中选择</span>
+                              </div>
+                            ) : (
+                              <div className="learning-tag-picker">
+                                <span>还没有可选标签，请先在左侧“分类与标签”里维护标签</span>
+                              </div>
+                            )}
                           </div>
                         </label>
 
