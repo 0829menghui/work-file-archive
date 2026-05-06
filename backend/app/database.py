@@ -155,10 +155,12 @@ def init_db() -> None:
                 item_type TEXT NOT NULL DEFAULT 'doc',
                 title TEXT NOT NULL,
                 category TEXT NOT NULL DEFAULT '大数据',
+                tags TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT '计划中',
                 priority TEXT NOT NULL DEFAULT '中',
                 content TEXT NOT NULL DEFAULT '',
                 resource_url TEXT NOT NULL DEFAULT '',
+                is_pinned INTEGER NOT NULL DEFAULT 0,
                 created_by INTEGER REFERENCES users(id),
                 is_deleted INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
@@ -170,6 +172,7 @@ def init_db() -> None:
                 item_id INTEGER NOT NULL REFERENCES learning_items(id) ON DELETE CASCADE,
                 title TEXT NOT NULL,
                 category TEXT NOT NULL DEFAULT '',
+                tags TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT '计划中',
                 priority TEXT NOT NULL DEFAULT '中',
                 content TEXT NOT NULL DEFAULT '',
@@ -219,6 +222,10 @@ def init_db() -> None:
             conn.execute("ALTER TABLE learning_items ADD COLUMN parent_id INTEGER")
         if "item_type" not in learning_columns:
             conn.execute("ALTER TABLE learning_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'doc'")
+        if "tags" not in learning_columns:
+            conn.execute("ALTER TABLE learning_items ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+        if "is_pinned" not in learning_columns:
+            conn.execute("ALTER TABLE learning_items ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0")
         conn.execute(
             """
             UPDATE learning_items

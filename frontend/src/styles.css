@@ -874,6 +874,43 @@ textarea:focus-visible {
   padding: 0 12px 10px;
 }
 
+.learning-mini-section {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.learning-mini-section span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-mini-list {
+  display: grid;
+  gap: 6px;
+}
+
+.learning-mini-list button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #32414f;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.learning-mini-list button:hover {
+  background: #eef6f8;
+  color: var(--accent-strong);
+}
+
 .learning-search {
   width: 100%;
 }

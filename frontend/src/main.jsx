@@ -133,7 +133,7 @@ function filterLearningTree(nodes, filters) {
   return nodes
     .map((node) => {
       const children = filterLearningTree(node.children || [], filters);
-      const matched = `${node.title} ${node.category} ${node.content} ${node.resource_url || ""}`
+      const matched = `${node.title} ${node.category} ${node.tags || ""} ${node.content} ${node.resource_url || ""}`
         .toLowerCase()
         .includes(keyword);
       const statusMatched = status === "all" || node.status === status;
@@ -626,10 +626,12 @@ function buildLearningDraft(item) {
   return {
     title: item?.title || "",
     category: item?.category || "大数据",
+    tags: item?.tags || "",
     status: item?.status || "计划中",
     priority: item?.priority || "中",
     resource_url: item?.resource_url || "",
     content: item?.content || "",
+    is_pinned: Boolean(item?.is_pinned),
   };
 }
 
@@ -764,6 +766,15 @@ function App() {
         .filter(Boolean)
     )
   );
+  const learningTags = Array.from(
+    new Set(
+      learningItems
+        .filter((item) => item.item_type !== "folder")
+        .flatMap((item) => (item.tags || "").split(/[,\n]/))
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
   const learningTree = useMemo(() => buildLearningTree(learningItems), [learningItems]);
   const filteredLearningTree = useMemo(
     () => filterLearningTree(learningTree, learningFilters),
@@ -823,8 +834,25 @@ function App() {
       inProgress: docs.filter((item) => item.status === "进行中").length,
       completed: docs.filter((item) => item.status === "已完成").length,
       highPriority: docs.filter((item) => item.priority === "高").length,
+      pinned: docs.filter((item) => item.is_pinned).length,
     };
   }, [learningItems]);
+  const learningRecentDocs = useMemo(
+    () =>
+      [...learningItems]
+        .filter((item) => item.item_type === "doc")
+        .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+        .slice(0, 6),
+    [learningItems]
+  );
+  const learningPinnedDocs = useMemo(
+    () =>
+      learningItems
+        .filter((item) => item.item_type === "doc" && item.is_pinned)
+        .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+        .slice(0, 6),
+    [learningItems]
+  );
 
   useEffect(() => {
     if (auth) {
@@ -2164,6 +2192,43 @@ function App() {
                   </button>
                 ))}
               </div>
+              {learningTags.length ? (
+                <div className="learning-category-strip compact">
+                  {learningTags.slice(0, 8).map((item) => (
+                    <button
+                      key={`tag-${item}`}
+                      type="button"
+                      onClick={() => setLearningFilters((current) => ({ ...current, query: item }))}
+                    >
+                      #{item}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {learningPinnedDocs.length ? (
+                <div className="learning-mini-section">
+                  <span>置顶文档</span>
+                  <div className="learning-mini-list">
+                    {learningPinnedDocs.map((item) => (
+                      <button key={`pinned-${item.id}`} type="button" onClick={() => selectLearningItem(item)}>
+                        {item.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {learningRecentDocs.length ? (
+                <div className="learning-mini-section">
+                  <span>最近编辑</span>
+                  <div className="learning-mini-list">
+                    {learningRecentDocs.map((item) => (
+                      <button key={`recent-${item.id}`} type="button" onClick={() => selectLearningItem(item)}>
+                        {item.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
             {selectedLearningIds.length ? (
               <div className="learning-batch-toolbar">
@@ -2315,6 +2380,7 @@ function App() {
                 <span><strong>{learningStats.inProgress}</strong> 进行中</span>
                 <span><strong>{learningStats.completed}</strong> 已完成</span>
                 <span><strong>{learningStats.highPriority}</strong> 高优先级</span>
+                <span><strong>{learningStats.pinned}</strong> 已置顶</span>
               </div>
               <div className="toolbar">
                 <IconButton label="退出登录" onClick={logout}>
@@ -2839,6 +2905,14 @@ function App() {
                           <>
                             {learningEditing ? (
                               <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setLearningDraft((current) => ({ ...current, is_pinned: !current.is_pinned }))
+                                  }
+                                >
+                                  {learningDraft.is_pinned ? "取消置顶" : "设为置顶"}
+                                </button>
                                 {isSqlContent(learningDraft.content) ? (
                                   <button type="button" onClick={formatLearningSqlDraft}>
                                     格式化 SQL
@@ -2921,6 +2995,17 @@ function App() {
                         placeholder="课程、文档、飞书、语雀、GitHub、博客地址"
                         onChange={(event) =>
                           setLearningDraft((current) => ({ ...current, resource_url: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="learning-link-field">
+                      <span>标签</span>
+                      <input
+                        value={learningDraft.tags}
+                        readOnly={!showLearningEditor}
+                        placeholder="用英文逗号分隔，比如 SQL, Flink, 指标体系"
+                        onChange={(event) =>
+                          setLearningDraft((current) => ({ ...current, tags: event.target.value }))
                         }
                       />
                     </label>

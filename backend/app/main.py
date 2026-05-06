@@ -1266,6 +1266,7 @@ def list_learning_items(user: dict = Depends(require_user)) -> list[dict]:
             LEFT JOIN users u ON u.id = li.created_by
             WHERE li.is_deleted = 0
             ORDER BY
+                li.is_pinned DESC,
                 COALESCE(li.parent_id, 0),
                 CASE li.item_type
                     WHEN 'folder' THEN 1
@@ -1310,13 +1311,14 @@ def save_learning_version(conn, item_row, user_id: int) -> None:
     conn.execute(
         """
         INSERT INTO learning_versions
-            (item_id, title, category, status, priority, content, resource_url, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (item_id, title, category, tags, status, priority, content, resource_url, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             item_row["id"],
             item_row["title"],
             item_row["category"] or "",
+            item_row["tags"] or "",
             item_row["status"] or "计划中",
             item_row["priority"] or "中",
             item_row["content"] or "",
@@ -1353,18 +1355,20 @@ def create_learning_item(payload: dict, user: dict = Depends(require_user)) -> d
         cur = conn.execute(
             """
             INSERT INTO learning_items
-                (parent_id, item_type, title, category, status, priority, content, resource_url, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (parent_id, item_type, title, category, tags, status, priority, content, resource_url, is_pinned, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 parent_id,
                 item_type,
                 title,
                 "文件夹" if item_type == "folder" else (payload.get("category") or "大数据").strip(),
+                "" if item_type == "folder" else (payload.get("tags") or "").strip(),
                 payload.get("status") or "计划中",
                 payload.get("priority") or "中",
                 "" if item_type == "folder" else (payload.get("content") or "").strip(),
                 "" if item_type == "folder" else (payload.get("resource_url") or "").strip(),
+                0 if item_type == "folder" else (1 if payload.get("is_pinned") else 0),
                 user["id"],
                 now,
                 now,
@@ -1380,7 +1384,7 @@ def create_learning_item(payload: dict, user: dict = Depends(require_user)) -> d
 
 @app.patch("/api/learning/items/{item_id}")
 def update_learning_item(item_id: int, payload: dict, user: dict = Depends(require_user)) -> dict:
-    allowed = {"title", "category", "status", "priority", "content", "resource_url", "parent_id"}
+    allowed = {"title", "category", "tags", "status", "priority", "content", "resource_url", "parent_id", "is_pinned"}
     updates = []
     values = []
     for key in allowed:
@@ -1424,7 +1428,7 @@ def update_learning_item(item_id: int, payload: dict, user: dict = Depends(requi
                         current = row["parent_id"] if row else None
         conn.execute(f"UPDATE learning_items SET {', '.join(updates)} WHERE id = ?", values)
         updated = conn.execute("SELECT * FROM learning_items WHERE id = ?", (item_id,)).fetchone()
-        tracked_fields = ("title", "category", "status", "priority", "content", "resource_url")
+        tracked_fields = ("title", "category", "tags", "status", "priority", "content", "resource_url")
         if (
             existing["item_type"] == "doc"
             and updated
@@ -1510,12 +1514,13 @@ def restore_learning_version(version_id: int, user: dict = Depends(require_user)
         conn.execute(
             """
             UPDATE learning_items
-            SET title = ?, category = ?, status = ?, priority = ?, content = ?, resource_url = ?, updated_at = ?
+            SET title = ?, category = ?, tags = ?, status = ?, priority = ?, content = ?, resource_url = ?, updated_at = ?
             WHERE id = ?
             """,
             (
                 version["title"],
                 version["category"],
+                version["tags"],
                 version["status"],
                 version["priority"],
                 version["content"],
