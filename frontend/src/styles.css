@@ -1767,6 +1767,7 @@ textarea:focus-visible {
 
 .learning-content-card-editor {
   min-height: 320px;
+  grid-template-rows: auto auto;
 }
 
 .learning-content-card-preview {
@@ -1797,7 +1798,7 @@ textarea:focus-visible {
 .learning-editor-body textarea {
   width: 100%;
   min-height: 260px;
-  height: 100%;
+  height: auto;
   resize: vertical;
   border: 1px solid #d4e0e8;
   border-radius: 8px;
@@ -1945,6 +1946,8 @@ textarea:focus-visible {
   display: grid;
   gap: 10px;
   margin-top: 4px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
 }
 
 .learning-version-panel-head {
