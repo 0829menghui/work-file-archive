@@ -1765,6 +1765,10 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.learning-content-card-editor {
+  min-height: 320px;
+}
+
 .learning-content-card-preview {
   min-height: 320px;
 }
@@ -1792,9 +1796,9 @@ textarea:focus-visible {
 
 .learning-editor-body textarea {
   width: 100%;
-  min-height: 0;
+  min-height: 260px;
   height: 100%;
-  resize: none;
+  resize: vertical;
   border: 1px solid #d4e0e8;
   border-radius: 8px;
   padding: 18px;
