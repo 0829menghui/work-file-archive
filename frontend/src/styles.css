@@ -1717,6 +1717,45 @@ textarea:focus-visible {
   padding: 0;
 }
 
+.learning-tag-input-wrap {
+  position: relative;
+  flex: 1 1 160px;
+  min-width: 160px;
+}
+
+.learning-tag-input-wrap .learning-tag-input {
+  width: 100%;
+}
+
+.learning-tag-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d9e4ea;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(23, 32, 42, 0.12);
+}
+
+.learning-tag-dropdown button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  text-align: left;
+  background: #f6fafb;
+  color: #315766;
+}
+
+.learning-tag-dropdown button:hover {
+  background: #e7f2f5;
+  color: var(--accent-strong);
+}
+
 .learning-tag-add {
   min-height: 30px;
   padding: 0 12px;

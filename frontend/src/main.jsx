@@ -730,6 +730,7 @@ function App() {
   });
   const [learningAutosaveLabel, setLearningAutosaveLabel] = useState("");
   const [learningTagInput, setLearningTagInput] = useState("");
+  const [learningTagSuggestOpen, setLearningTagSuggestOpen] = useState(false);
   const [learningSidebarTagInput, setLearningSidebarTagInput] = useState("");
   const [learningCustomTags, setLearningCustomTags] = useState(() => {
     try {
@@ -873,6 +874,13 @@ function App() {
     () => parseLearningTags(learningDraft.tags || ""),
     [learningDraft.tags]
   );
+  const filteredLearningTagSuggestions = useMemo(() => {
+    const keyword = learningTagInput.trim().replace(/^#/, "").toLowerCase();
+    return learningTags
+      .filter((tag) => !currentLearningTags.includes(tag))
+      .filter((tag) => !keyword || tag.toLowerCase().includes(keyword))
+      .slice(0, 10);
+  }, [learningTags, currentLearningTags, learningTagInput]);
   const learningPinnedDocs = useMemo(
     () =>
       learningItems
@@ -1849,6 +1857,7 @@ function App() {
     const nextTags = Array.from(new Set([...currentLearningTags, value]));
     updateLearningTags(nextTags);
     setLearningTagInput("");
+    setLearningTagSuggestOpen(false);
   }
 
   function removeLearningTag(tag) {
@@ -3038,13 +3047,34 @@ function App() {
                               ) : (
                                 <span className="learning-tag-empty">未设置标签</span>
                               )}
-                              <input
-                                className="learning-tag-input"
-                                value={learningTagInput}
-                                placeholder="输入标签后回车"
-                                onChange={(event) => setLearningTagInput(event.target.value)}
-                                onKeyDown={handleLearningTagInputKeyDown}
-                              />
+                              <div className="learning-tag-input-wrap">
+                                <input
+                                  className="learning-tag-input"
+                                  value={learningTagInput}
+                                  placeholder="输入标签后回车"
+                                  onFocus={() => setLearningTagSuggestOpen(true)}
+                                  onBlur={() => window.setTimeout(() => setLearningTagSuggestOpen(false), 120)}
+                                  onChange={(event) => {
+                                    setLearningTagInput(event.target.value);
+                                    setLearningTagSuggestOpen(true);
+                                  }}
+                                  onKeyDown={handleLearningTagInputKeyDown}
+                                />
+                                {learningTagSuggestOpen && filteredLearningTagSuggestions.length ? (
+                                  <div className="learning-tag-dropdown">
+                                    {filteredLearningTagSuggestions.map((tag) => (
+                                      <button
+                                        key={`suggest-${tag}`}
+                                        type="button"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={() => addLearningTag(tag)}
+                                      >
+                                        #{tag}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
                               <button type="button" className="learning-tag-add" onClick={() => addLearningTag(learningTagInput)}>
                                 添加
                               </button>
