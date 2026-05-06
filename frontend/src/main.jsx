@@ -694,6 +694,7 @@ function App() {
   const [previewError, setPreviewError] = useState("");
   const [projectDraft, setProjectDraft] = useState(() => buildProjectDraft());
   const [projectSaving, setProjectSaving] = useState(false);
+  const [archiveProjectPanelOpen, setArchiveProjectPanelOpen] = useState(false);
   const [archiveSearch, setArchiveSearch] = useState({
     query: "",
     kind: "all",
@@ -970,6 +971,10 @@ function App() {
   useEffect(() => {
     setProjectDraft(buildProjectDraft(project));
   }, [project?.id, project?.updated_at]);
+
+  useEffect(() => {
+    setArchiveProjectPanelOpen(false);
+  }, [project?.id]);
 
   useEffect(() => {
     if (activeFolder) loadItems(activeFolder.id);
@@ -2032,61 +2037,81 @@ function App() {
               ))}
             </div>
             {project ? (
-              <div className="archive-project-panel">
-                <div className="archive-project-panel-head">
-                  <strong>项目资料</strong>
-                  <span>{canEditActiveModule ? "这里维护客户、状态和备注" : "当前账号可查看项目资料"}</span>
-                </div>
-                <label>
-                  <span>项目名称</span>
-                  <input
-                    value={projectDraft.name}
-                    readOnly={!canEditActiveModule}
-                    onChange={(event) => setProjectDraft((current) => ({ ...current, name: event.target.value }))}
-                  />
-                </label>
-                <div className="archive-project-panel-grid">
-                  <label>
-                    <span>客户</span>
-                    <input
-                      value={projectDraft.client_name}
-                      readOnly={!canEditActiveModule}
-                      placeholder="客户或负责人"
-                      onChange={(event) => setProjectDraft((current) => ({ ...current, client_name: event.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    <span>状态</span>
-                    <select
-                      value={projectDraft.status}
-                      disabled={!canEditActiveModule}
-                      onChange={(event) => setProjectDraft((current) => ({ ...current, status: event.target.value }))}
-                    >
-                      <option>制作中</option>
-                      <option>待确认</option>
-                      <option>已交付</option>
-                      <option>已归档</option>
-                    </select>
-                  </label>
-                </div>
-                <label>
-                  <span>项目说明</span>
-                  <textarea
-                    value={projectDraft.description}
-                    readOnly={!canEditActiveModule}
-                    placeholder="记录交付说明、特殊约束、文件组织说明"
-                    onChange={(event) => setProjectDraft((current) => ({ ...current, description: event.target.value }))}
-                  />
-                </label>
-                {canEditActiveModule ? (
-                  <button
-                    type="button"
-                    className="primary-button archive-project-save"
-                    disabled={!projectDraftDirty || projectSaving}
-                    onClick={saveProjectDraft}
-                  >
-                    {projectSaving ? "保存中..." : "保存项目资料"}
-                  </button>
+              <div className={`archive-project-panel ${archiveProjectPanelOpen ? "expanded" : "collapsed"}`}>
+                <button
+                  type="button"
+                  className="archive-project-toggle"
+                  onClick={() => setArchiveProjectPanelOpen((current) => !current)}
+                >
+                  <div className="archive-project-toggle-copy">
+                    <strong>项目资料</strong>
+                    <span>
+                      {[projectDraft.client_name || "未填写客户", projectDraft.status || "制作中"]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </div>
+                  <span className={`archive-project-toggle-arrow ${archiveProjectPanelOpen ? "open" : ""}`}>
+                    <ChevronRight size={16} />
+                  </span>
+                </button>
+                {archiveProjectPanelOpen ? (
+                  <div className="archive-project-panel-body">
+                    <div className="archive-project-panel-head">
+                      <span>{canEditActiveModule ? "这里维护客户、状态和备注" : "当前账号可查看项目资料"}</span>
+                    </div>
+                    <label>
+                      <span>项目名称</span>
+                      <input
+                        value={projectDraft.name}
+                        readOnly={!canEditActiveModule}
+                        onChange={(event) => setProjectDraft((current) => ({ ...current, name: event.target.value }))}
+                      />
+                    </label>
+                    <div className="archive-project-panel-grid">
+                      <label>
+                        <span>客户</span>
+                        <input
+                          value={projectDraft.client_name}
+                          readOnly={!canEditActiveModule}
+                          placeholder="客户或负责人"
+                          onChange={(event) => setProjectDraft((current) => ({ ...current, client_name: event.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        <span>状态</span>
+                        <select
+                          value={projectDraft.status}
+                          disabled={!canEditActiveModule}
+                          onChange={(event) => setProjectDraft((current) => ({ ...current, status: event.target.value }))}
+                        >
+                          <option>制作中</option>
+                          <option>待确认</option>
+                          <option>已交付</option>
+                          <option>已归档</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label>
+                      <span>项目说明</span>
+                      <textarea
+                        value={projectDraft.description}
+                        readOnly={!canEditActiveModule}
+                        placeholder="记录交付说明、特殊约束、文件组织说明"
+                        onChange={(event) => setProjectDraft((current) => ({ ...current, description: event.target.value }))}
+                      />
+                    </label>
+                    {canEditActiveModule ? (
+                      <button
+                        type="button"
+                        className="primary-button archive-project-save"
+                        disabled={!projectDraftDirty || projectSaving}
+                        onClick={saveProjectDraft}
+                      >
+                        {projectSaving ? "保存中..." : "保存项目资料"}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             ) : null}

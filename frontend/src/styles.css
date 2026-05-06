@@ -336,8 +336,8 @@ textarea:focus-visible {
 
 .module-trigger {
   width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
+  min-height: 40px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -532,11 +532,65 @@ textarea:focus-visible {
 
 .archive-project-panel {
   margin: 0 12px 14px;
-  padding: 14px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(180deg, #ffffff, #f8fbfc);
   box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 8px;
+}
+
+.archive-project-panel.collapsed {
+  padding: 8px;
+}
+
+.archive-project-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #f5f9fb;
+  text-align: left;
+}
+
+.archive-project-toggle:hover {
+  background: #edf5f8;
+}
+
+.archive-project-toggle-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.archive-project-toggle-copy strong {
+  color: var(--text);
+}
+
+.archive-project-toggle-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-project-toggle-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+
+.archive-project-toggle-arrow.open {
+  transform: rotate(90deg);
+}
+
+.archive-project-panel-body {
   display: grid;
   gap: 10px;
 }
