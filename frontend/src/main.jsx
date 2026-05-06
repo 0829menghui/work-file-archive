@@ -615,6 +615,7 @@ function App() {
   const [items, setItems] = useState({ folders: [], files: [] });
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedArchiveIds, setSelectedArchiveIds] = useState([]);
+  const [archiveBatchTargetFolderId, setArchiveBatchTargetFolderId] = useState("");
   const [detail, setDetail] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [previewError, setPreviewError] = useState("");
@@ -634,6 +635,7 @@ function App() {
   });
   const [selectedLearningId, setSelectedLearningId] = useState(null);
   const [selectedLearningIds, setSelectedLearningIds] = useState([]);
+  const [learningBatchTargetParentId, setLearningBatchTargetParentId] = useState("");
   const [learningDraft, setLearningDraft] = useState(() => buildLearningDraft());
   const [learningSaving, setLearningSaving] = useState(false);
   const [learningEditing, setLearningEditing] = useState(false);
@@ -703,6 +705,10 @@ function App() {
       size: formatSize(project?.total_size || 0),
     };
   }, [projects.length, items.folders.length, items.files.length, project?.total_size]);
+  const archiveFolderOptions = useMemo(
+    () => folders.filter((folder) => !activeFolder || folder.id !== activeFolder.id),
+    [folders, activeFolder?.id]
+  );
   const selectedLearningFolderId = useMemo(() => {
     if (!selectedLearningItem) return null;
     return selectedLearningItem.item_type === "folder"
@@ -713,6 +719,10 @@ function App() {
     if (!selectedLearningItem || selectedLearningItem.item_type !== "folder") return [];
     return learningItems.filter((item) => item.parent_id === selectedLearningItem.id);
   }, [learningItems, selectedLearningItem]);
+  const learningFolderOptions = useMemo(
+    () => learningItems.filter((item) => item.item_type === "folder" && !selectedLearningIds.includes(item.id)),
+    [learningItems, selectedLearningIds]
+  );
   const currentLearningFolderTitle = selectedLearningItem?.item_type === "folder"
     ? selectedLearningItem.title
     : "顶层";
@@ -1227,6 +1237,32 @@ function App() {
     }
   }
 
+  async function moveSelectedFiles() {
+    if (!canEditActiveModule || !selectedArchiveIds.length || !archiveBatchTargetFolderId) return;
+    const targetFolder = folders.find((folder) => folder.id === Number(archiveBatchTargetFolderId));
+    if (!targetFolder) {
+      setMessage("请选择目标目录");
+      return;
+    }
+    if (!window.confirm(`确定把选中的 ${selectedArchiveIds.length} 个文件移动到 ${targetFolder.name} 吗？`)) return;
+    try {
+      for (const fileId of selectedArchiveIds) {
+        await apiFetch(
+          `/files/${fileId}/move`,
+          { method: "PATCH", body: JSON.stringify({ folder_id: targetFolder.id }) },
+          token
+        );
+      }
+      setSelectedArchiveIds([]);
+      setArchiveBatchTargetFolderId("");
+      await loadTree(project.id);
+      await loadItems(activeFolder.id);
+      setMessage(`已移动 ${selectedArchiveIds.length} 个文件到 ${targetFolder.name}`);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function deleteFile(file) {
     if (!canEditActiveModule) return;
     if (!window.confirm(`删除 ${file.name}？文件会进入回收站。`)) return;
@@ -1416,6 +1452,57 @@ function App() {
       setSelectedLearningIds([]);
       await loadLearningItems();
       setMessage(`已删除 ${selectedLearningIds.length} 项内容`);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  async function moveSelectedLearningItems() {
+    if (!canEditActiveModule || !selectedLearningIds.length) return;
+    const nextParentId = learningBatchTargetParentId ? Number(learningBatchTargetParentId) : null;
+    const targetLabel = nextParentId
+      ? learningItems.find((item) => item.id === nextParentId)?.title || "目标目录"
+      : "知识库根目录";
+    if (!window.confirm(`确定把选中的 ${selectedLearningIds.length} 项内容移动到 ${targetLabel} 吗？`)) return;
+    try {
+      for (const itemId of selectedLearningIds) {
+        await apiFetch(
+          `/learning/items/${itemId}`,
+          { method: "PATCH", body: JSON.stringify({ parent_id: nextParentId }) },
+          token
+        );
+      }
+      setSelectedLearningIds([]);
+      setLearningBatchTargetParentId("");
+      await loadLearningItems();
+      setMessage(`已移动 ${selectedLearningIds.length} 项内容到 ${targetLabel}`);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  async function updateSelectedLearningCategory() {
+    if (!canEditActiveModule || !selectedLearningIds.length) return;
+    const docIds = selectedLearningIds.filter((itemId) => {
+      const item = learningItems.find((current) => current.id === itemId);
+      return item?.item_type === "doc";
+    });
+    if (!docIds.length) {
+      setMessage("选中的内容里没有可改分类的文档");
+      return;
+    }
+    const category = window.prompt("请输入新的分类", selectedLearningItem?.category || "大数据");
+    if (!category || !category.trim()) return;
+    try {
+      for (const itemId of docIds) {
+        await apiFetch(
+          `/learning/items/${itemId}`,
+          { method: "PATCH", body: JSON.stringify({ category: category.trim() }) },
+          token
+        );
+      }
+      await loadLearningItems();
+      setMessage(`已更新 ${docIds.length} 篇文档的分类`);
     } catch (err) {
       showError(err);
     }
