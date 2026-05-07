@@ -3068,9 +3068,7 @@ function App() {
                                     <span>×</span>
                                   </button>
                                 ))
-                              ) : (
-                                <span className="learning-tag-empty">未设置标签</span>
-                              )}
+                              ) : null}
                               <div className="learning-tag-input-wrap">
                                 <input
                                   ref={learningTagInputRef}
@@ -3100,6 +3098,9 @@ function App() {
                                   </div>
                                 ) : null}
                               </div>
+                            </div>
+                            <div className="learning-tag-picker">
+                              <span>可连续选择多个已有标签</span>
                             </div>
                             {learningTagSuggestOpen && !filteredLearningTagSuggestions.length && availableLearningTagChoices.length ? (
                               <div className="learning-tag-picker">
