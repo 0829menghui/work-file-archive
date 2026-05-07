@@ -800,6 +800,10 @@ function App() {
     )
   );
   const learningSidebarTags = Array.from(new Set([...learningCustomTags, ...learningTags]));
+  const learningSelectableTags = useMemo(
+    () => Array.from(new Set([...learningCategories, ...learningSidebarTags].filter(Boolean))),
+    [learningCategories, learningSidebarTags]
+  );
   const learningTree = useMemo(() => buildLearningTree(learningItems), [learningItems]);
   const filteredLearningTree = useMemo(
     () => filterLearningTree(learningTree, learningFilters),
@@ -875,8 +879,8 @@ function App() {
     [learningDraft.tags]
   );
   const availableLearningTagChoices = useMemo(
-    () => learningSidebarTags.filter((tag) => !currentLearningTags.includes(tag)),
-    [learningSidebarTags, currentLearningTags]
+    () => learningSelectableTags.filter((tag) => !currentLearningTags.includes(tag)),
+    [learningSelectableTags, currentLearningTags]
   );
   const normalizedLearningTagInput = useMemo(
     () => learningTagInput.trim().replace(/^#/, ""),
@@ -1866,7 +1870,7 @@ function App() {
   function addLearningTag(tag) {
     const value = (tag || "").trim().replace(/^#/, "");
     if (!value) return;
-    if (!learningSidebarTags.some((item) => item.toLowerCase() === value.toLowerCase())) {
+    if (!learningSelectableTags.some((item) => item.toLowerCase() === value.toLowerCase())) {
       setMessage("这里只能选择已有标签");
       window.setTimeout(() => setMessage(""), 2200);
       return;
