@@ -284,6 +284,7 @@ textarea:focus-visible {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   overflow: hidden;
+  position: relative;
 }
 
 .compact-shell .app-title {
@@ -924,55 +925,99 @@ textarea:focus-visible {
   margin-bottom: 0;
 }
 
-.learning-sidebar-panels {
+.learning-utility-dock {
+  position: absolute;
+  left: 0;
+  top: 84px;
+  bottom: 12px;
+  width: 48px;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.learning-utility-dock.open {
+  width: 330px;
+}
+
+.learning-utility-rail,
+.learning-utility-popover {
+  pointer-events: auto;
+}
+
+.learning-utility-rail {
+  position: absolute;
+  left: 6px;
+  top: 0;
   display: grid;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 1px solid rgba(209, 223, 231, 0.92);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(23, 32, 42, 0.08);
+  backdrop-filter: blur(8px);
 }
 
-.learning-sidebar-panels-inline {
-  padding: 0 12px 10px;
-}
-
-.learning-sidebar-panel {
-  border: 1px solid var(--line-soft);
+.learning-utility-rail button {
+  width: 34px;
+  min-height: 34px;
   border-radius: 10px;
-  background: #f8fbfc;
-  overflow: hidden;
+  background: transparent;
+  color: #58707f;
 }
 
-.learning-sidebar-panel-toggle {
-  width: 100%;
-  min-height: 38px;
-  padding: 0 12px;
+.learning-utility-rail button:hover,
+.learning-utility-rail button.active {
+  background: #e7f2f5;
+  color: var(--accent-strong);
+}
+
+.learning-utility-popover {
+  position: absolute;
+  left: 54px;
+  top: 0;
+  width: 268px;
+  max-height: min(520px, calc(100vh - 180px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid rgba(209, 223, 231, 0.96);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 38px rgba(23, 32, 42, 0.12);
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+
+.learning-utility-popover-head {
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: transparent;
-  color: #32414f;
-  font-size: 13px;
-  font-weight: 700;
+  padding: 0 14px;
+  border-bottom: 1px solid #e3ebef;
+  background: #f9fcfd;
 }
 
-.learning-sidebar-panel-toggle:hover {
-  background: #eef6f8;
-  color: var(--accent-strong);
+.learning-utility-popover-head strong {
+  color: var(--text);
+  font-size: 14px;
 }
 
-.learning-sidebar-panel-toggle svg {
-  flex-shrink: 0;
-  transition: transform 120ms ease;
+.learning-utility-popover-head button {
+  width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
+  background: #eef5f7;
+  color: #5b7382;
 }
 
-.learning-sidebar-panel-toggle svg.rotate {
-  transform: rotate(90deg);
-}
-
-.learning-sidebar-panel-body {
+.learning-utility-popover-body {
+  min-height: 0;
   display: grid;
   gap: 10px;
-  padding: 0 10px 10px;
+  padding: 12px;
+  overflow: auto;
 }
 
 .learning-mini-section {
@@ -1275,7 +1320,7 @@ textarea:focus-visible {
 }
 
 .learning-sidebar-tree-inline {
-  padding: 0 12px 12px;
+  padding: 0 12px 12px 56px;
 }
 
 .learning-sidebar-tree .learning-tree-row {

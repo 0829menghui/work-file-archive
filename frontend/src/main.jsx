@@ -833,6 +833,7 @@ function App() {
     shortcuts: false,
     sqlLibrary: true,
   }));
+  const [learningUtilityPanel, setLearningUtilityPanel] = useState(null);
   const [learningHistoryOpen, setLearningHistoryOpen] = useState(false);
   const [learningSqlLibraryQuery, setLearningSqlLibraryQuery] = useState("");
   const [adminData, setAdminData] = useState({ users: [], modules: [] });
@@ -2286,123 +2287,157 @@ function App() {
               ) : null}
             </div>
 
-            <div className="learning-sidebar-panels learning-sidebar-panels-inline">
-              <section className={`learning-sidebar-panel ${learningSidebarPanels.filters ? "open" : ""}`}>
+            <div
+              className={`learning-utility-dock ${learningUtilityPanel ? "open" : ""}`}
+              onMouseLeave={() => setLearningUtilityPanel(null)}
+            >
+              <div className="learning-utility-rail">
                 <button
                   type="button"
-                  className="learning-sidebar-panel-toggle"
-                  onClick={() => toggleLearningSidebarPanel("filters")}
+                  className={learningUtilityPanel === "filters" ? "active" : ""}
+                  title="搜索与筛选"
+                  onMouseEnter={() => setLearningUtilityPanel("filters")}
+                  onFocus={() => setLearningUtilityPanel("filters")}
+                  onClick={() => setLearningUtilityPanel((current) => current === "filters" ? null : "filters")}
                 >
-                  <span>搜索与筛选</span>
-                  <ChevronRight size={16} className={learningSidebarPanels.filters ? "rotate" : ""} />
+                  <Search size={16} />
                 </button>
-                {learningSidebarPanels.filters ? (
-                  <div className="learning-sidebar-panel-body">
-                    <div className="learning-toolbar">
-                      <div className="searchbox learning-search">
-                        <Search size={16} />
-                        <input
-                          value={learningFilters.query}
-                          placeholder="搜索标题、分类、正文、链接"
-                          onChange={(event) => setLearningFilters((current) => ({ ...current, query: event.target.value }))}
-                        />
-                      </div>
-                      <div className="learning-filter-row">
-                        <select
-                          value={learningFilters.status}
-                          onChange={(event) => setLearningFilters((current) => ({ ...current, status: event.target.value }))}
-                        >
-                          <option value="all">全部状态</option>
-                          <option value="计划中">计划中</option>
-                          <option value="进行中">进行中</option>
-                          <option value="已完成">已完成</option>
-                          <option value="暂停">暂停</option>
-                        </select>
-                        <select
-                          value={learningFilters.itemType}
-                          onChange={(event) => setLearningFilters((current) => ({ ...current, itemType: event.target.value }))}
-                        >
-                          <option value="all">全部内容</option>
-                          <option value="doc">仅文档</option>
-                          <option value="folder">仅文件夹</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
+                <button
+                  type="button"
+                  className={learningUtilityPanel === "categories" ? "active" : ""}
+                  title="分类与标签"
+                  onMouseEnter={() => setLearningUtilityPanel("categories")}
+                  onFocus={() => setLearningUtilityPanel("categories")}
+                  onClick={() => setLearningUtilityPanel((current) => current === "categories" ? null : "categories")}
+                >
+                  <BookOpen size={16} />
+                </button>
+                {(learningPinnedDocs.length || learningRecentDocs.length) ? (
+                  <button
+                    type="button"
+                    className={learningUtilityPanel === "shortcuts" ? "active" : ""}
+                    title="快捷入口"
+                    onMouseEnter={() => setLearningUtilityPanel("shortcuts")}
+                    onFocus={() => setLearningUtilityPanel("shortcuts")}
+                    onClick={() => setLearningUtilityPanel((current) => current === "shortcuts" ? null : "shortcuts")}
+                  >
+                    <History size={16} />
+                  </button>
                 ) : null}
-              </section>
+                {learningSqlSnippets.length ? (
+                  <button
+                    type="button"
+                    className={learningUtilityPanel === "sqlLibrary" ? "active" : ""}
+                    title="SQL 片段库"
+                    onMouseEnter={() => setLearningUtilityPanel("sqlLibrary")}
+                    onFocus={() => setLearningUtilityPanel("sqlLibrary")}
+                    onClick={() => setLearningUtilityPanel((current) => current === "sqlLibrary" ? null : "sqlLibrary")}
+                  >
+                    <FileBox size={16} />
+                  </button>
+                ) : null}
+              </div>
 
-              <section className={`learning-sidebar-panel ${learningSidebarPanels.categories ? "open" : ""}`}>
-                <button
-                  type="button"
-                  className="learning-sidebar-panel-toggle"
-                  onClick={() => toggleLearningSidebarPanel("categories")}
-                >
-                  <span>分类与标签</span>
-                  <ChevronRight size={16} className={learningSidebarPanels.categories ? "rotate" : ""} />
-                </button>
-                {learningSidebarPanels.categories ? (
-                  <div className="learning-sidebar-panel-body">
-                    <div className="learning-sidebar-tag-adder">
-                      <input
-                        value={learningSidebarTagInput}
-                        placeholder="添加标签"
-                        onChange={(event) => setLearningSidebarTagInput(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            addSidebarLearningTag();
-                          }
-                        }}
-                      />
-                      <button type="button" onClick={addSidebarLearningTag}>添加</button>
-                    </div>
-                    <div className="learning-category-strip compact">
-                      <div>
-                        {learningCategories.map((item) => (
-                          <button
-                            key={item}
-                            type="button"
-                            className={learningFilters.query === item ? "active" : ""}
-                            onClick={() => setLearningFilters((current) => ({ ...current, query: current.query === item ? "" : item }))}
+              {learningUtilityPanel ? (
+                <div className="learning-utility-popover">
+                  <div className="learning-utility-popover-head">
+                    <strong>
+                      {learningUtilityPanel === "filters" ? "搜索与筛选" : null}
+                      {learningUtilityPanel === "categories" ? "分类与标签" : null}
+                      {learningUtilityPanel === "shortcuts" ? "快捷入口" : null}
+                      {learningUtilityPanel === "sqlLibrary" ? "SQL 片段库" : null}
+                    </strong>
+                    <button type="button" onClick={() => setLearningUtilityPanel(null)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {learningUtilityPanel === "filters" ? (
+                    <div className="learning-utility-popover-body">
+                      <div className="learning-toolbar">
+                        <div className="searchbox learning-search">
+                          <Search size={16} />
+                          <input
+                            value={learningFilters.query}
+                            placeholder="搜索标题、分类、正文、链接"
+                            onChange={(event) => setLearningFilters((current) => ({ ...current, query: event.target.value }))}
+                          />
+                        </div>
+                        <div className="learning-filter-row">
+                          <select
+                            value={learningFilters.status}
+                            onChange={(event) => setLearningFilters((current) => ({ ...current, status: event.target.value }))}
                           >
-                            {item}
-                          </button>
-                        ))}
+                            <option value="all">全部状态</option>
+                            <option value="计划中">计划中</option>
+                            <option value="进行中">进行中</option>
+                            <option value="已完成">已完成</option>
+                            <option value="暂停">暂停</option>
+                          </select>
+                          <select
+                            value={learningFilters.itemType}
+                            onChange={(event) => setLearningFilters((current) => ({ ...current, itemType: event.target.value }))}
+                          >
+                            <option value="all">全部内容</option>
+                            <option value="doc">仅文档</option>
+                            <option value="folder">仅文件夹</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
-                    {learningSidebarTags.length ? (
+                  ) : null}
+
+                  {learningUtilityPanel === "categories" ? (
+                    <div className="learning-utility-popover-body">
+                      <div className="learning-sidebar-tag-adder">
+                        <input
+                          value={learningSidebarTagInput}
+                          placeholder="添加标签"
+                          onChange={(event) => setLearningSidebarTagInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addSidebarLearningTag();
+                            }
+                          }}
+                        />
+                        <button type="button" onClick={addSidebarLearningTag}>添加</button>
+                      </div>
                       <div className="learning-category-strip compact">
                         <div>
-                          {learningSidebarTags.slice(0, 16).map((item) => (
+                          {learningCategories.map((item) => (
                             <button
-                              key={`tag-filter-${item}`}
+                              key={item}
                               type="button"
                               className={learningFilters.query === item ? "active" : ""}
-                              onClick={() => toggleLearningTagFilter(item)}
+                              onClick={() => setLearningFilters((current) => ({ ...current, query: current.query === item ? "" : item }))}
                             >
-                              #{item}
+                              {item}
                             </button>
                           ))}
                         </div>
                       </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </section>
+                      {learningSidebarTags.length ? (
+                        <div className="learning-category-strip compact">
+                          <div>
+                            {learningSidebarTags.slice(0, 16).map((item) => (
+                              <button
+                                key={`tag-filter-${item}`}
+                                type="button"
+                                className={learningFilters.query === item ? "active" : ""}
+                                onClick={() => toggleLearningTagFilter(item)}
+                              >
+                                #{item}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
-              {(learningPinnedDocs.length || learningRecentDocs.length) ? (
-                <section className={`learning-sidebar-panel ${learningSidebarPanels.shortcuts ? "open" : ""}`}>
-                  <button
-                    type="button"
-                    className="learning-sidebar-panel-toggle"
-                    onClick={() => toggleLearningSidebarPanel("shortcuts")}
-                  >
-                    <span>快捷入口</span>
-                    <ChevronRight size={16} className={learningSidebarPanels.shortcuts ? "rotate" : ""} />
-                  </button>
-                  {learningSidebarPanels.shortcuts ? (
-                    <div className="learning-sidebar-panel-body">
+                  {learningUtilityPanel === "shortcuts" ? (
+                    <div className="learning-utility-popover-body">
                       {learningPinnedDocs.length ? (
                         <div className="learning-mini-section">
                           <span>置顶文档</span>
@@ -2429,21 +2464,9 @@ function App() {
                       ) : null}
                     </div>
                   ) : null}
-                </section>
-              ) : null}
 
-              {learningSqlSnippets.length ? (
-                <section className={`learning-sidebar-panel ${learningSidebarPanels.sqlLibrary ? "open" : ""}`}>
-                  <button
-                    type="button"
-                    className="learning-sidebar-panel-toggle"
-                    onClick={() => toggleLearningSidebarPanel("sqlLibrary")}
-                  >
-                    <span>SQL 片段库</span>
-                    <ChevronRight size={16} className={learningSidebarPanels.sqlLibrary ? "rotate" : ""} />
-                  </button>
-                  {learningSidebarPanels.sqlLibrary ? (
-                    <div className="learning-sidebar-panel-body">
+                  {learningUtilityPanel === "sqlLibrary" ? (
+                    <div className="learning-utility-popover-body">
                       <div className="searchbox learning-search learning-sql-library-search">
                         <Search size={16} />
                         <input
@@ -2479,7 +2502,7 @@ function App() {
                       </div>
                     </div>
                   ) : null}
-                </section>
+                </div>
               ) : null}
             </div>
 
