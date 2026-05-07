@@ -770,6 +770,7 @@ function App() {
   const learningTitleRef = useRef(null);
   const learningContentRef = useRef(null);
   const learningWorkspaceRef = useRef(null);
+  const learningTagInputRef = useRef(null);
 
   const token = auth?.token;
   const tree = useMemo(() => buildTree(folders), [folders]);
@@ -1878,7 +1879,8 @@ function App() {
     const nextTags = Array.from(new Set([...currentLearningTags, value]));
     updateLearningTags(nextTags);
     setLearningTagInput("");
-    setLearningTagSuggestOpen(false);
+    setLearningTagSuggestOpen(true);
+    window.requestAnimationFrame(() => learningTagInputRef.current?.focus());
   }
 
   function removeLearningTag(tag) {
@@ -3071,6 +3073,7 @@ function App() {
                               )}
                               <div className="learning-tag-input-wrap">
                                 <input
+                                  ref={learningTagInputRef}
                                   className="learning-tag-input"
                                   value={learningTagInput}
                                   placeholder="筛选已有标签"
@@ -3098,26 +3101,15 @@ function App() {
                                 ) : null}
                               </div>
                             </div>
-                            {filteredLearningTagSuggestions.length ? (
-                              <div className="learning-tag-picker">
-                                <span>{normalizedLearningTagInput ? "匹配标签" : "可选标签"}</span>
-                                <div className="learning-tag-suggestions">
-                                  {filteredLearningTagSuggestions.map((tag) => (
-                                    <button key={`pick-${tag}`} type="button" onClick={() => addLearningTag(tag)}>
-                                      #{tag}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : availableLearningTagChoices.length ? (
+                            {learningTagSuggestOpen && !filteredLearningTagSuggestions.length && availableLearningTagChoices.length ? (
                               <div className="learning-tag-picker">
                                 <span>没有匹配项，请从已有标签中选择</span>
                               </div>
-                            ) : (
+                            ) : !availableLearningTagChoices.length ? (
                               <div className="learning-tag-picker">
                                 <span>还没有可选标签，请先在左侧“分类与标签”里维护标签</span>
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         </label>
 
