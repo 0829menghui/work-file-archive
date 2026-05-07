@@ -438,6 +438,87 @@ function formatSql(content = "") {
   return sql.trimEnd();
 }
 
+function guessSqlSnippetTitle(sql = "", fallback = "SQL 片段") {
+  const firstMeaningfulLine = (sql || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstMeaningfulLine) return fallback;
+  const namedComment = firstMeaningfulLine.match(/^--\s*(?:名称|标题)\s*[:：]\s*(.+)$/);
+  if (namedComment) return namedComment[1].trim();
+  const compact = firstMeaningfulLine.replace(/^--\s*/, "").replace(/\s+/g, " ").trim();
+  return compact.length > 28 ? `${compact.slice(0, 28)}...` : compact || fallback;
+}
+
+function extractSqlSnippetsFromItem(item) {
+  if (!item || item.item_type === "folder") return [];
+  const content = item.content || "";
+  const trimmed = content.trim();
+  if (!trimmed) return [];
+
+  if (isSqlContent(trimmed)) {
+    return [{
+      id: `${item.id}-sql-0`,
+      itemId: item.id,
+      itemTitle: item.title,
+      title: item.title || guessSqlSnippetTitle(trimmed),
+      category: item.category || "",
+      tags: parseLearningTags(item.tags || ""),
+      content: formatSql(trimmed),
+      rawContent: trimmed,
+      updatedAt: item.updated_at || "",
+    }];
+  }
+
+  const lines = content.split(/\r?\n/);
+  let inCode = false;
+  let codeLanguage = "";
+  let code = [];
+  let currentHeading = "";
+  let snippetIndex = 0;
+  const snippets = [];
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trimEnd();
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (!inCode && heading) {
+      currentHeading = heading[2].trim();
+      return;
+    }
+    if (line.trim().startsWith("```")) {
+      if (inCode) {
+        if (codeLanguage === "sql") {
+          const snippetText = code.join("\n").trim();
+          if (snippetText) {
+            snippetIndex += 1;
+            snippets.push({
+              id: `${item.id}-sql-${snippetIndex}`,
+              itemId: item.id,
+              itemTitle: item.title,
+              title: currentHeading || guessSqlSnippetTitle(snippetText, `SQL 片段 ${snippetIndex}`),
+              category: item.category || "",
+              tags: parseLearningTags(item.tags || ""),
+              content: formatSql(snippetText),
+              rawContent: snippetText,
+              updatedAt: item.updated_at || "",
+            });
+          }
+        }
+        code = [];
+        codeLanguage = "";
+        inCode = false;
+      } else {
+        codeLanguage = line.trim().slice(3).trim().toLowerCase();
+        inCode = true;
+      }
+      return;
+    }
+    if (inCode) code.push(rawLine);
+  });
+
+  return snippets;
+}
+
 function renderLearningContent(content) {
   const trimmedContent = (content || "").trim();
   if (isSqlContent(trimmedContent)) {
@@ -750,8 +831,10 @@ function App() {
     filters: true,
     categories: false,
     shortcuts: false,
+    sqlLibrary: true,
   }));
   const [learningHistoryOpen, setLearningHistoryOpen] = useState(false);
+  const [learningSqlLibraryQuery, setLearningSqlLibraryQuery] = useState("");
   const [adminData, setAdminData] = useState({ users: [], modules: [] });
   const [moduleDrafts, setModuleDrafts] = useState({});
   const [newUser, setNewUser] = useState({
@@ -906,6 +989,29 @@ function App() {
         .slice(0, 6),
     [learningItems]
   );
+  const learningSqlSnippets = useMemo(
+    () =>
+      learningItems
+        .flatMap((item) => extractSqlSnippetsFromItem(item))
+        .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")),
+    [learningItems]
+  );
+  const filteredLearningSqlSnippets = useMemo(() => {
+    const keyword = learningSqlLibraryQuery.trim().toLowerCase();
+    if (!keyword) return learningSqlSnippets;
+    return learningSqlSnippets.filter((snippet) =>
+      [
+        snippet.title,
+        snippet.itemTitle,
+        snippet.category,
+        snippet.tags.join(" "),
+        snippet.rawContent,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [learningSqlSnippets, learningSqlLibraryQuery]);
 
   useEffect(() => {
     if (auth) {
@@ -1893,6 +1999,44 @@ function App() {
     if (exactLearningTagMatch) addLearningTag(exactLearningTagMatch);
   }
 
+  async function copyLearningSqlSnippet(snippet) {
+    const text = snippet.rawContent || snippet.content || "";
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        throw new Error("clipboard-unavailable");
+      }
+      setMessage(`已复制：${snippet.title}`);
+      window.setTimeout(() => setMessage(""), 1800);
+    } catch {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "readonly");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        setMessage(`已复制：${snippet.title}`);
+        window.setTimeout(() => setMessage(""), 1800);
+      } catch {
+        setMessage("复制失败，请检查浏览器权限");
+        window.setTimeout(() => setMessage(""), 2200);
+      }
+    }
+  }
+
+  function openLearningSnippetSource(snippet) {
+    const item = learningItems.find((current) => current.id === snippet.itemId);
+    if (!item) return;
+    selectLearningItem(item);
+    setLearningEditing(false);
+  }
+
   async function restoreLearningVersion(version) {
     if (!canEditActiveModule) return;
     if (!window.confirm(`确定恢复到 ${version.created_at?.slice(0, 16).replace("T", " ")} 的版本吗？`)) return;
@@ -2283,6 +2427,56 @@ function App() {
                           </div>
                         </div>
                       ) : null}
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {learningSqlSnippets.length ? (
+                <section className={`learning-sidebar-panel ${learningSidebarPanels.sqlLibrary ? "open" : ""}`}>
+                  <button
+                    type="button"
+                    className="learning-sidebar-panel-toggle"
+                    onClick={() => toggleLearningSidebarPanel("sqlLibrary")}
+                  >
+                    <span>SQL 片段库</span>
+                    <ChevronRight size={16} className={learningSidebarPanels.sqlLibrary ? "rotate" : ""} />
+                  </button>
+                  {learningSidebarPanels.sqlLibrary ? (
+                    <div className="learning-sidebar-panel-body">
+                      <div className="searchbox learning-search learning-sql-library-search">
+                        <Search size={16} />
+                        <input
+                          value={learningSqlLibraryQuery}
+                          placeholder="搜索 SQL 名称、目录、正文"
+                          onChange={(event) => setLearningSqlLibraryQuery(event.target.value)}
+                        />
+                      </div>
+                      <div className="learning-sql-library-list">
+                        {filteredLearningSqlSnippets.slice(0, 12).map((snippet) => (
+                          <article className="learning-sql-snippet-card" key={snippet.id}>
+                            <button
+                              type="button"
+                              className="learning-sql-snippet-main"
+                              onClick={() => openLearningSnippetSource(snippet)}
+                            >
+                              <strong>{snippet.title}</strong>
+                              <span>{snippet.itemTitle}</span>
+                              <small>{snippet.category || "未分类"}</small>
+                            </button>
+                            <button
+                              type="button"
+                              className="learning-sql-snippet-copy"
+                              onClick={() => copyLearningSqlSnippet(snippet)}
+                            >
+                              复制
+                            </button>
+                          </article>
+                        ))}
+                        {!filteredLearningSqlSnippets.length ? (
+                          <div className="learning-sql-empty">没有匹配的 SQL 片段</div>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
                 </section>
