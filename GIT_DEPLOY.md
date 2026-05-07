@@ -5,7 +5,7 @@
 - 本地开发机器：`/Users/zmd/work/work-file-archive`
 - 线上服务器项目目录：`/opt/work-file-archive`
 - GitHub 仓库：`https://github.com/0829menghui/work-file-archive.git`
-- 线上访问地址：`http://124.223.78.223:8081/`
+- 线上访问地址：`http://work.working.com/`
 - 线上服务器：`ubuntu@124.223.78.223`
 - 服务器系统：`Ubuntu`
 - 前端：`React + Vite`
@@ -160,10 +160,10 @@ sudo systemctl restart work-file-archive
 
 ### 4. 配置 nginx
 
-当前项目挂在独立端口下：
+当前项目挂在独立域名下：
 
 ```text
-http://124.223.78.223:8081/
+http://work.working.com/
 ```
 
 nginx 需要把这些路径转到新项目：
@@ -177,14 +177,14 @@ nginx 需要把这些路径转到新项目：
 
 它的含义是：
 
-- 旧项目 `requirement-archive` 继续占用 `80` 端口
-- 当前项目 `work-file-archive` 单独挂在 `8081` 端口
+- 旧项目 `requirement-archive` 继续使用 `http://124.223.78.223/`
+- 当前项目 `work-file-archive` 单独使用 `http://work.working.com/`
 
 这样做的好处：
 
 - 旧项目网址完全不变
-- 当前项目有自己独立的访问地址
-- 不需要再用子路径区分两个项目
+- 当前项目有自己独立的访问域名
+- 不需要再用端口或子路径区分两个项目
 
 修改 nginx 后执行：
 
