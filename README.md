@@ -288,7 +288,7 @@ data/storage/
 仓库与线上地址：
 
 - GitHub 仓库：`https://github.com/0829menghui/work-file-archive.git`
-- 线上地址：`http://124.223.78.223/`
+- 线上地址：`http://124.223.78.223/work-file-archive/`
 - 服务器：`ubuntu@124.223.78.223`
 
 常用一键发布命令：

@@ -5,7 +5,7 @@
 - 本地开发机器：`/Users/zmd/work/work-file-archive`
 - 线上服务器项目目录：`/opt/work-file-archive`
 - GitHub 仓库：`https://github.com/0829menghui/work-file-archive.git`
-- 线上访问地址：`http://124.223.78.223/`
+- 线上访问地址：`http://124.223.78.223/work-file-archive/`
 - 线上服务器：`ubuntu@124.223.78.223`
 - 服务器系统：`Ubuntu`
 - 前端：`React + Vite`
@@ -160,18 +160,25 @@ sudo systemctl restart work-file-archive
 
 ### 4. 配置 nginx
 
-当前项目直接挂在服务器根路径下：
+当前项目挂在服务器子路径下：
 
 ```text
-http://124.223.78.223/
+http://124.223.78.223/work-file-archive/
 ```
 
 nginx 需要把这些路径转到新项目：
 
-- `/`: 前端静态资源
-- `/api/`: 后端 API
-- `/docs`: FastAPI 文档
-- `/openapi.json`: OpenAPI 描述
+- `/work-file-archive/`: 前端静态资源
+- `/work-file-archive/api/`: 后端 API
+
+项目根目录里已经放好一个参考配置文件：
+
+- [nginx.work-file-archive.conf](./nginx.work-file-archive.conf)
+
+它的含义是：
+
+- 旧项目 `requirement-archive` 继续占用根路径 `/`
+- 当前项目 `work-file-archive` 单独挂在 `/work-file-archive/`
 
 修改 nginx 后执行：
 
