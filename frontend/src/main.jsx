@@ -855,6 +855,7 @@ function App() {
   const learningContentRef = useRef(null);
   const learningWorkspaceRef = useRef(null);
   const learningTagInputRef = useRef(null);
+  const learningUtilityDockRef = useRef(null);
 
   const token = auth?.token;
   const tree = useMemo(() => buildTree(folders), [folders]);
@@ -1020,6 +1021,16 @@ function App() {
       loadModules();
     }
   }, [auth]);
+
+  useEffect(() => {
+    if (!learningUtilityPanel) return undefined;
+    const handlePointerDown = (event) => {
+      if (learningUtilityDockRef.current?.contains(event.target)) return;
+      setLearningUtilityPanel(null);
+    };
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [learningUtilityPanel]);
 
   useEffect(() => {
     localStorage.setItem("work-file-archive-learning-custom-tags", JSON.stringify(learningCustomTags));
@@ -2288,16 +2299,14 @@ function App() {
             </div>
 
             <div
+              ref={learningUtilityDockRef}
               className={`learning-utility-dock ${learningUtilityPanel ? "open" : ""}`}
-              onMouseLeave={() => setLearningUtilityPanel(null)}
             >
               <div className="learning-utility-rail">
                 <button
                   type="button"
                   className={learningUtilityPanel === "filters" ? "active" : ""}
                   title="搜索与筛选"
-                  onMouseEnter={() => setLearningUtilityPanel("filters")}
-                  onFocus={() => setLearningUtilityPanel("filters")}
                   onClick={() => setLearningUtilityPanel((current) => current === "filters" ? null : "filters")}
                 >
                   <Search size={16} />
@@ -2306,8 +2315,6 @@ function App() {
                   type="button"
                   className={learningUtilityPanel === "categories" ? "active" : ""}
                   title="分类与标签"
-                  onMouseEnter={() => setLearningUtilityPanel("categories")}
-                  onFocus={() => setLearningUtilityPanel("categories")}
                   onClick={() => setLearningUtilityPanel((current) => current === "categories" ? null : "categories")}
                 >
                   <BookOpen size={16} />
@@ -2317,8 +2324,6 @@ function App() {
                     type="button"
                     className={learningUtilityPanel === "shortcuts" ? "active" : ""}
                     title="快捷入口"
-                    onMouseEnter={() => setLearningUtilityPanel("shortcuts")}
-                    onFocus={() => setLearningUtilityPanel("shortcuts")}
                     onClick={() => setLearningUtilityPanel((current) => current === "shortcuts" ? null : "shortcuts")}
                   >
                     <History size={16} />
@@ -2329,8 +2334,6 @@ function App() {
                     type="button"
                     className={learningUtilityPanel === "sqlLibrary" ? "active" : ""}
                     title="SQL 片段库"
-                    onMouseEnter={() => setLearningUtilityPanel("sqlLibrary")}
-                    onFocus={() => setLearningUtilityPanel("sqlLibrary")}
                     onClick={() => setLearningUtilityPanel((current) => current === "sqlLibrary" ? null : "sqlLibrary")}
                   >
                     <FileBox size={16} />
