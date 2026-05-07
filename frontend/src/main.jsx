@@ -3082,6 +3082,20 @@ function App() {
                                   }}
                                   onKeyDown={handleLearningTagInputKeyDown}
                                 />
+                                {learningTagSuggestOpen && filteredLearningTagSuggestions.length ? (
+                                  <div className="learning-tag-dropdown">
+                                    {filteredLearningTagSuggestions.map((tag) => (
+                                      <button
+                                        key={`dropdown-${tag}`}
+                                        type="button"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={() => addLearningTag(tag)}
+                                      >
+                                        #{tag}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                             {filteredLearningTagSuggestions.length ? (
