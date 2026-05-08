@@ -26,7 +26,11 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const API = import.meta.env.VITE_API_BASE || "/api";
+function resolveApiBase() {
+  return import.meta.env.VITE_API_BASE || "/work-file-archive/api";
+}
+
+const API = resolveApiBase();
 const LEARNING_VIEW_STORAGE_KEY = "work-file-archive-learning-view-mode";
 
 function getLearningDraftStorageKey(itemId) {
