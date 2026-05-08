@@ -1938,6 +1938,26 @@ textarea:focus-visible {
 
 .learning-tag-input-wrap .learning-tag-input {
   width: 100%;
+  padding-right: 64px;
+}
+
+.learning-tag-trigger {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #edf5f8;
+  color: #315766;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-tag-trigger:hover {
+  background: #dfeef2;
+  color: var(--accent-strong);
 }
 
 .learning-tag-dropdown {
@@ -1956,17 +1976,26 @@ textarea:focus-visible {
 }
 
 .learning-tag-dropdown button {
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 8px 10px;
   border-radius: 8px;
   text-align: left;
   background: #f6fafb;
   color: #315766;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .learning-tag-dropdown button:hover {
   background: #e7f2f5;
   color: var(--accent-strong);
+}
+
+.learning-tag-dropdown button small {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .learning-tag-add {
@@ -2012,6 +2041,106 @@ textarea:focus-visible {
 .learning-tag-suggestions button:hover {
   background: #e8f3f6;
   color: var(--accent-strong);
+}
+
+.learning-outline-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #e2ebef;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfdfe, #f6fafc);
+}
+
+.learning-outline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.learning-outline-head strong {
+  color: var(--text);
+}
+
+.learning-outline-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learning-outline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learning-outline-chip {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: #eef5f8;
+  color: #345666;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-outline-chip.level-2 {
+  background: #f4f8fa;
+  color: #4d6877;
+}
+
+.learning-outline-chip.level-3 {
+  background: #fafcfd;
+  color: #6a7f8d;
+}
+
+.learning-code-block {
+  display: grid;
+  gap: 0;
+  margin: 0 0 16px;
+  border: 1px solid #dce6eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #12202a;
+}
+
+.learning-code-block.sql {
+  border-color: #203546;
+  background: #111b24;
+}
+
+.learning-code-block-head {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.learning-code-block-head span {
+  color: #d5e7ee;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.learning-code-block-head button {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #eff7fa;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-code-block-head button:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .learning-tag-display.empty {

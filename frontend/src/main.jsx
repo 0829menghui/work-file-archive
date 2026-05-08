@@ -161,6 +161,32 @@ function formatSize(bytes = 0) {
   return `${size.toFixed(size >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+async function copyTextToClipboard(text = "") {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    throw new Error("clipboard-unavailable");
+  } catch {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "readonly");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }
@@ -656,10 +682,50 @@ function extractSqlSnippetsFromItem(item) {
   return snippets;
 }
 
+function extractLearningOutline(content = "") {
+  return (content || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .map((line, index) => {
+      const match = line.match(/^(#{1,3})\s+(.+)$/);
+      if (!match) return null;
+      return {
+        id: `outline-${index}-${match[2]}`,
+        level: Math.min(match[1].length, 3),
+        title: match[2].trim(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderCodePreviewBlock(source, language = "") {
+  const codeText = language === "sql" ? formatSql(source) : source;
+  const label = language === "sql" ? "SQL" : (language || "代码块").toUpperCase();
+  return (
+    <div className={`learning-code-block ${language === "sql" ? "sql" : ""}`}>
+      <div className="learning-code-block-head">
+        <span>{label}</span>
+        <button
+          type="button"
+          onClick={async () => {
+            const ok = await copyTextToClipboard(codeText);
+            if (!ok) window.alert("复制失败，请检查浏览器权限");
+          }}
+        >
+          复制
+        </button>
+      </div>
+      <pre className={language === "sql" ? "sql-preview" : ""}>
+        <code>{codeText}</code>
+      </pre>
+    </div>
+  );
+}
+
 function renderLearningContent(content) {
   const trimmedContent = (content || "").trim();
   if (isSqlContent(trimmedContent)) {
-    return <pre className="sql-preview"><code>{formatSql(trimmedContent)}</code></pre>;
+    return renderCodePreviewBlock(trimmedContent, "sql");
   }
 
   const lines = (content || "").split(/\r?\n/);
@@ -724,11 +790,7 @@ function renderLearningContent(content) {
     const line = rawLine.trimEnd();
     if (line.trim().startsWith("```")) {
       if (inCode) {
-        elements.push(
-          <pre key={`code-${elements.length}`} className={codeLanguage === "sql" ? "sql-preview" : ""}>
-            <code>{codeLanguage === "sql" ? formatSql(code.join("\n")) : code.join("\n")}</code>
-          </pre>
-        );
+        elements.push(<React.Fragment key={`code-${elements.length}`}>{renderCodePreviewBlock(code.join("\n"), codeLanguage)}</React.Fragment>);
         code = [];
         codeLanguage = "";
         inCode = false;
@@ -798,11 +860,7 @@ function renderLearningContent(content) {
   });
 
   if (inCode) {
-    elements.push(
-      <pre key={`code-${elements.length}`} className={codeLanguage === "sql" ? "sql-preview" : ""}>
-        <code>{codeLanguage === "sql" ? formatSql(code.join("\n")) : code.join("\n")}</code>
-      </pre>
-    );
+    elements.push(<React.Fragment key={`code-${elements.length}`}>{renderCodePreviewBlock(code.join("\n"), codeLanguage)}</React.Fragment>);
   }
   flushParagraph();
   flushList();
@@ -1165,6 +1223,10 @@ function App() {
         .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
         .slice(0, 6),
     [learningItems]
+  );
+  const learningOutline = useMemo(
+    () => extractLearningOutline(learningDraft.content || ""),
+    [learningDraft.content]
   );
   const learningSqlSnippets = useMemo(
     () =>
@@ -2289,30 +2351,13 @@ function App() {
     const text = snippet.rawContent || snippet.content || "";
     if (!text) return;
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        throw new Error("clipboard-unavailable");
-      }
+      const copied = await copyTextToClipboard(text);
+      if (!copied) throw new Error("clipboard-unavailable");
       setMessage(`已复制：${snippet.title}`);
       window.setTimeout(() => setMessage(""), 1800);
     } catch {
-      try {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        textarea.setAttribute("readonly", "readonly");
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-        setMessage(`已复制：${snippet.title}`);
-        window.setTimeout(() => setMessage(""), 1800);
-      } catch {
-        setMessage("复制失败，请检查浏览器权限");
-        window.setTimeout(() => setMessage(""), 2200);
-      }
+      setMessage("复制失败，请检查浏览器权限");
+      window.setTimeout(() => setMessage(""), 2200);
     }
   }
 
@@ -3811,6 +3856,15 @@ function App() {
                                   }}
                                   onKeyDown={handleLearningTagInputKeyDown}
                                 />
+                                <button
+                                  type="button"
+                                  className="learning-tag-trigger"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => setLearningTagSuggestOpen((current) => !current)}
+                                  title="展开已有标签"
+                                >
+                                  选择
+                                </button>
                                 {learningTagSuggestOpen && filteredLearningTagSuggestions.length ? (
                                   <div className="learning-tag-dropdown">
                                     {filteredLearningTagSuggestions.map((tag) => (
@@ -3820,7 +3874,8 @@ function App() {
                                         onMouseDown={(event) => event.preventDefault()}
                                         onClick={() => addLearningTag(tag)}
                                       >
-                                        #{tag}
+                                        <span>#{tag}</span>
+                                        <small>加入当前文档</small>
                                       </button>
                                     ))}
                                   </div>
@@ -3828,7 +3883,21 @@ function App() {
                               </div>
                             </div>
                             <div className="learning-tag-picker">
-                              <span>可连续选择多个已有标签</span>
+                              <span>从已有标签库里连续选择多个标签</span>
+                              {availableLearningTagChoices.length ? (
+                                <div className="learning-tag-suggestions">
+                                  {availableLearningTagChoices.slice(0, 10).map((tag) => (
+                                    <button
+                                      key={`quick-tag-${tag}`}
+                                      type="button"
+                                      onMouseDown={(event) => event.preventDefault()}
+                                      onClick={() => addLearningTag(tag)}
+                                    >
+                                      #{tag}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                             {learningTagSuggestOpen && !filteredLearningTagSuggestions.length && availableLearningTagChoices.length ? (
                               <div className="learning-tag-picker">
@@ -3847,6 +3916,24 @@ function App() {
                             <strong>正文</strong>
                             <span>适合写学习笔记、方案、复盘和知识沉淀</span>
                           </div>
+                          {learningOutline.length ? (
+                            <div className="learning-outline-panel">
+                              <div className="learning-outline-head">
+                                <strong>文档目录</strong>
+                                <span>{learningOutline.length} 个标题</span>
+                              </div>
+                              <div className="learning-outline-list">
+                                {learningOutline.map((item) => (
+                                  <span
+                                    key={item.id}
+                                    className={`learning-outline-chip level-${item.level}`}
+                                  >
+                                    {item.title}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                           <div className="learning-snippet-toolbar">
                             <button type="button" onClick={() => insertLearningTemplate("heading1")}>H1</button>
                             <button type="button" onClick={() => insertLearningTemplate("heading2")}>H2</button>
@@ -3958,6 +4045,24 @@ function App() {
                             <strong>正文</strong>
                             <span>适合写学习笔记、方案、复盘和知识沉淀</span>
                           </div>
+                          {learningOutline.length ? (
+                            <div className="learning-outline-panel">
+                              <div className="learning-outline-head">
+                                <strong>文档目录</strong>
+                                <span>{learningOutline.length} 个标题</span>
+                              </div>
+                              <div className="learning-outline-list">
+                                {learningOutline.map((item) => (
+                                  <span
+                                    key={item.id}
+                                    className={`learning-outline-chip level-${item.level}`}
+                                  >
+                                    {item.title}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                           <div
                             className={`learning-content-card learning-content-card-preview learning-reading-card ${canEditActiveModule ? "click-to-edit" : ""}`}
                             onClick={() => {
