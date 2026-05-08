@@ -2234,7 +2234,7 @@ function App() {
 
   return (
     <main className={`app-shell ${activeModule === "admin" ? "compact-shell" : ""}`}>
-      <aside className="sidebar">
+      <aside className={`sidebar ${activeModule === "learning" ? "learning-sidebar-shell" : ""}`}>
         <div className="app-title">
           <Box size={24} />
           <div>
