@@ -2306,44 +2306,17 @@ function App() {
               ref={learningUtilityDockRef}
               className={`learning-utility-dock ${learningUtilityPanel ? "open" : ""}`}
             >
-              <div className="learning-utility-rail">
-                <button
-                  type="button"
-                  className={learningUtilityPanel === "filters" ? "active" : ""}
-                  title="搜索与筛选"
-                  onClick={() => setLearningUtilityPanel((current) => current === "filters" ? null : "filters")}
-                >
-                  <Search size={16} />
-                </button>
-                <button
-                  type="button"
-                  className={learningUtilityPanel === "categories" ? "active" : ""}
-                  title="分类与标签"
-                  onClick={() => setLearningUtilityPanel((current) => current === "categories" ? null : "categories")}
-                >
-                  <BookOpen size={16} />
-                </button>
-                {(learningPinnedDocs.length || learningRecentDocs.length) ? (
-                  <button
-                    type="button"
-                    className={learningUtilityPanel === "shortcuts" ? "active" : ""}
-                    title="快捷入口"
-                    onClick={() => setLearningUtilityPanel((current) => current === "shortcuts" ? null : "shortcuts")}
-                  >
-                    <History size={16} />
-                  </button>
-                ) : null}
-                {learningSqlSnippets.length ? (
-                  <button
-                    type="button"
-                    className={learningUtilityPanel === "sqlLibrary" ? "active" : ""}
-                    title="SQL 片段库"
-                    onClick={() => setLearningUtilityPanel((current) => current === "sqlLibrary" ? null : "sqlLibrary")}
-                  >
-                    <FileBox size={16} />
-                  </button>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                className={`learning-utility-handle ${learningUtilityPanel ? "open" : ""}`}
+                title={learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
+                onClick={() => setLearningUtilityPanel((current) => current ? null : "filters")}
+              >
+                <span className="learning-utility-handle-badge">
+                  <ChevronRight size={18} />
+                </span>
+                <span>{learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}</span>
+              </button>
 
               {learningUtilityPanel ? (
                 <div className="learning-utility-popover">
@@ -2357,6 +2330,45 @@ function App() {
                     <button type="button" onClick={() => setLearningUtilityPanel(null)}>
                       <X size={14} />
                     </button>
+                  </div>
+
+                  <div className="learning-utility-nav">
+                    <button
+                      type="button"
+                      className={learningUtilityPanel === "filters" ? "active" : ""}
+                      onClick={() => setLearningUtilityPanel("filters")}
+                    >
+                      <Search size={16} />
+                      <span>搜索与筛选</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={learningUtilityPanel === "categories" ? "active" : ""}
+                      onClick={() => setLearningUtilityPanel("categories")}
+                    >
+                      <BookOpen size={16} />
+                      <span>分类与标签</span>
+                    </button>
+                    {(learningPinnedDocs.length || learningRecentDocs.length) ? (
+                      <button
+                        type="button"
+                        className={learningUtilityPanel === "shortcuts" ? "active" : ""}
+                        onClick={() => setLearningUtilityPanel("shortcuts")}
+                      >
+                        <History size={16} />
+                        <span>快捷入口</span>
+                      </button>
+                    ) : null}
+                    {learningSqlSnippets.length ? (
+                      <button
+                        type="button"
+                        className={learningUtilityPanel === "sqlLibrary" ? "active" : ""}
+                        onClick={() => setLearningUtilityPanel("sqlLibrary")}
+                      >
+                        <FileBox size={16} />
+                        <span>SQL 片段库</span>
+                      </button>
+                    ) : null}
                   </div>
 
                   {learningUtilityPanel === "filters" ? (
