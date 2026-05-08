@@ -35,6 +35,7 @@ const LEARNING_VIEW_STORAGE_KEY = "work-file-archive-learning-view-mode";
 const LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY = "work-file-archive-learning-dock-top";
 const LEARNING_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-learning-recent-searches";
 const ARCHIVE_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-archive-recent-searches";
+const LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY = "work-file-archive-learning-custom-templates";
 
 const LEARNING_TEMPLATES = [
   {
@@ -143,10 +144,38 @@ function parseRecentSearches(raw) {
   }
 }
 
+function exportRowsToCsv(filename, headers, rows) {
+  const escapeCell = (value) => {
+    const text = value == null ? "" : String(value);
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  const lines = [
+    headers.map((header) => escapeCell(header.label)).join(","),
+    ...rows.map((row) => headers.map((header) => escapeCell(row[header.key])).join(",")),
+  ];
+  const blob = new Blob(["\ufeff", lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
 function pushRecentSearch(list, value) {
   const next = (value || "").trim();
   if (!next) return list;
   return [next, ...list.filter((item) => item !== next)].slice(0, 8);
+}
+
+function slugifyLearningAnchor(text = "") {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function formatSize(bytes = 0) {
@@ -691,6 +720,7 @@ function extractLearningOutline(content = "") {
       if (!match) return null;
       return {
         id: `outline-${index}-${match[2]}`,
+        anchor: `outline-anchor-${index}-${slugifyLearningAnchor(match[2])}`,
         level: Math.min(match[1].length, 3),
         title: match[2].trim(),
       };
@@ -786,7 +816,7 @@ function renderLearningContent(content) {
     table = [];
   };
 
-  lines.forEach((rawLine) => {
+  lines.forEach((rawLine, lineIndex) => {
     const line = rawLine.trimEnd();
     if (line.trim().startsWith("```")) {
       if (inCode) {
@@ -819,7 +849,12 @@ function renderLearningContent(content) {
       flushList();
       flushTable();
       const Tag = `h${Math.min(heading[1].length + 1, 4)}`;
-      elements.push(<Tag key={`h-${elements.length}`}>{renderInlineText(heading[2])}</Tag>);
+      const anchor = `outline-anchor-${lineIndex}-${slugifyLearningAnchor(heading[2])}`;
+      elements.push(
+        <Tag key={`h-${elements.length}`} id={anchor} data-outline-anchor={anchor}>
+          {renderInlineText(heading[2])}
+        </Tag>
+      );
       return;
     }
     const tableLine = line.match(/^\|(.+)\|$/);
@@ -1027,6 +1062,15 @@ function App() {
       return [];
     }
   });
+  const [learningCustomTemplates, setLearningCustomTemplates] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [learningTreeWidth, setLearningTreeWidth] = useState(() => {
     const raw = localStorage.getItem("work-file-archive-learning-tree-width");
     const value = raw ? Number(raw) : 360;
@@ -1046,7 +1090,11 @@ function App() {
   const [learningUtilityPanel, setLearningUtilityPanel] = useState(null);
   const [learningHistoryOpen, setLearningHistoryOpen] = useState(false);
   const [learningSqlLibraryQuery, setLearningSqlLibraryQuery] = useState("");
+  const [learningSqlLibraryCategory, setLearningSqlLibraryCategory] = useState("all");
+  const [learningSqlLibraryTag, setLearningSqlLibraryTag] = useState("all");
   const [archiveSearchTick, setArchiveSearchTick] = useState(0);
+  const [archiveProjectStageFilter, setArchiveProjectStageFilter] = useState("all");
+  const [archiveProjectQuery, setArchiveProjectQuery] = useState("");
   const [adminData, setAdminData] = useState({ users: [], modules: [], logs: [] });
   const [moduleDrafts, setModuleDrafts] = useState({});
   const [adminFilters, setAdminFilters] = useState({
@@ -1067,12 +1115,18 @@ function App() {
   const [dragOverFolderId, setDragOverFolderId] = useState(null);
   const [dragOverLearningId, setDragOverLearningId] = useState(null);
   const [showIneffectiveVersions, setShowIneffectiveVersions] = useState(false);
+  const [globalFinderOpen, setGlobalFinderOpen] = useState(false);
+  const [globalFinderQuery, setGlobalFinderQuery] = useState("");
+  const [globalFinderScope, setGlobalFinderScope] = useState("all");
   const uploadRef = useRef(null);
   const folderUploadRef = useRef(null);
   const learningTitleRef = useRef(null);
   const learningContentRef = useRef(null);
+  const learningReadPreviewRef = useRef(null);
+  const learningSplitPreviewRef = useRef(null);
   const learningWorkspaceRef = useRef(null);
   const learningTagInputRef = useRef(null);
+  const globalFinderInputRef = useRef(null);
   const learningUtilityDockRef = useRef(null);
   const learningUtilityDragStateRef = useRef({
     dragging: false,
@@ -1235,11 +1289,22 @@ function App() {
         .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")),
     [learningItems]
   );
+  const learningSqlLibraryCategories = useMemo(
+    () => Array.from(new Set(learningSqlSnippets.map((snippet) => snippet.category).filter(Boolean))),
+    [learningSqlSnippets]
+  );
+  const learningSqlLibraryTags = useMemo(
+    () => Array.from(new Set(learningSqlSnippets.flatMap((snippet) => snippet.tags || []).filter(Boolean))),
+    [learningSqlSnippets]
+  );
   const filteredLearningSqlSnippets = useMemo(() => {
     const keyword = learningSqlLibraryQuery.trim().toLowerCase();
-    if (!keyword) return learningSqlSnippets;
-    return learningSqlSnippets.filter((snippet) =>
-      [
+    return learningSqlSnippets.filter((snippet) => {
+      const categoryMatched = learningSqlLibraryCategory === "all" || snippet.category === learningSqlLibraryCategory;
+      const tagMatched = learningSqlLibraryTag === "all" || (snippet.tags || []).includes(learningSqlLibraryTag);
+      if (!categoryMatched || !tagMatched) return false;
+      if (!keyword) return true;
+      return [
         snippet.title,
         snippet.itemTitle,
         snippet.category,
@@ -1250,9 +1315,29 @@ function App() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(keyword)
-    );
-  }, [learningSqlSnippets, learningSqlLibraryQuery]);
+        .includes(keyword);
+    });
+  }, [learningSqlSnippets, learningSqlLibraryQuery, learningSqlLibraryCategory, learningSqlLibraryTag]);
+  const archiveVisibleProjects = useMemo(() => {
+    const keyword = archiveProjectQuery.trim().toLowerCase();
+    return projects.filter((item) => {
+      const stageMatched = archiveProjectStageFilter === "all" || item.stage === archiveProjectStageFilter;
+      if (!stageMatched) return false;
+      if (!keyword) return true;
+      return [
+        item.name,
+        item.client_name,
+        item.contact_name,
+        item.description,
+        item.stage,
+        item.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [projects, archiveProjectQuery, archiveProjectStageFilter]);
   const filteredAdminUsers = useMemo(() => {
     const keyword = adminFilters.userQuery.trim().toLowerCase();
     return adminData.users.filter((item) => {
@@ -1310,6 +1395,10 @@ function App() {
   }, [learningCustomTags]);
 
   useEffect(() => {
+    localStorage.setItem(LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY, JSON.stringify(learningCustomTemplates));
+  }, [learningCustomTemplates]);
+
+  useEffect(() => {
     localStorage.setItem(LEARNING_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(learningRecentSearches));
   }, [learningRecentSearches]);
 
@@ -1320,6 +1409,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem(LEARNING_VIEW_STORAGE_KEY, learningViewMode);
   }, [learningViewMode]);
+
+  useEffect(() => {
+    if (!globalFinderOpen) return;
+    window.requestAnimationFrame(() => globalFinderInputRef.current?.focus());
+  }, [globalFinderOpen]);
 
   useEffect(() => {
     localStorage.setItem("work-file-archive-learning-tree-width", String(learningTreeWidth));
@@ -1542,6 +1636,154 @@ function App() {
       query: current.query === tag ? "" : tag,
     }));
   }
+
+  function saveLearningTemplateFromCurrentDoc() {
+    if (!selectedLearningItem || selectedLearningItem.item_type !== "doc") return;
+    const suggested = `${learningDraft.title || "未命名文档"} 模板`;
+    const name = window.prompt("模板名称", suggested);
+    if (!name) return;
+    const normalized = name.trim();
+    if (!normalized) return;
+    const template = {
+      key: `custom-${Date.now()}`,
+      name: normalized,
+      category: learningDraft.category || "学习笔记",
+      tags: learningDraft.tags || "",
+      status: learningDraft.status || "计划中",
+      priority: learningDraft.priority || "中",
+      content: learningDraft.content || "",
+      createdAt: new Date().toISOString(),
+    };
+    setLearningCustomTemplates((current) => {
+      const withoutDuplicate = current.filter((item) => item.name !== normalized);
+      return [template, ...withoutDuplicate].slice(0, 24);
+    });
+    setLearningTemplatePickerOpen(true);
+    setMessage(`已保存自定义模板：${normalized}`);
+  }
+
+  function deleteLearningTemplate(templateKey) {
+    setLearningCustomTemplates((current) => current.filter((item) => item.key !== templateKey));
+    setMessage("已删除自定义模板");
+  }
+
+  function scrollLearningOutlineTo(anchor) {
+    if (!anchor) return;
+    const containers = [learningReadPreviewRef.current, learningSplitPreviewRef.current].filter(Boolean);
+    for (const container of containers) {
+      const target = container.querySelector(`[data-outline-anchor="${anchor}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    const fallback = document.getElementById(anchor);
+    if (fallback) fallback.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function exportAuditLogs() {
+    if (!filteredAuditLogs.length) {
+      setMessage("没有可导出的日志");
+      return;
+    }
+    exportRowsToCsv(
+      `work-file-archive-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`,
+      [
+        { key: "created_at", label: "时间" },
+        { key: "action", label: "操作" },
+        { key: "target_type", label: "对象类型" },
+        { key: "user_display_name", label: "操作人" },
+        { key: "detail", label: "详情" },
+      ],
+      filteredAuditLogs
+    );
+    setMessage("已导出操作日志");
+  }
+
+  const globalFinderResults = useMemo(() => {
+    const keyword = globalFinderQuery.trim().toLowerCase();
+    if (!keyword) return [];
+    const groups = [];
+    const includeScope = (scope) => globalFinderScope === "all" || globalFinderScope === scope;
+    if (includeScope("learning")) {
+      const docs = learningItems
+        .filter((item) =>
+          [item.title, item.category, item.tags || "", item.content || ""].join(" ").toLowerCase().includes(keyword)
+        )
+        .slice(0, 8)
+        .map((item) => ({
+          id: `learning-${item.id}`,
+          group: "知识库",
+          title: item.title,
+          meta: `${item.item_type === "folder" ? "文件夹" : "文档"} · ${item.category || "未分类"}`,
+          action: () => {
+            setActiveModule("learning");
+            selectLearningItem(item);
+            setGlobalFinderOpen(false);
+          },
+        }));
+      groups.push(...docs);
+    }
+    if (includeScope("snippet")) {
+      const snippets = learningSqlSnippets
+        .filter((item) =>
+          [item.title, item.itemTitle, item.category, item.tags.join(" "), item.rawContent].join(" ").toLowerCase().includes(keyword)
+        )
+        .slice(0, 8)
+        .map((item) => ({
+          id: `snippet-${item.id}`,
+          group: "SQL 片段",
+          title: item.title,
+          meta: `${item.itemTitle} · ${item.category || "SQL"}`,
+          action: () => {
+            setActiveModule("learning");
+            openLearningSnippetSource(item);
+            setGlobalFinderOpen(false);
+          },
+        }));
+      groups.push(...snippets);
+    }
+    if (includeScope("archive")) {
+      const projectMatches = projects
+        .filter((item) =>
+          [item.name, item.client_name, item.contact_name, item.description, item.stage, item.status]
+            .join(" ")
+            .toLowerCase()
+            .includes(keyword)
+        )
+        .slice(0, 8)
+        .map((item) => ({
+          id: `project-${item.id}`,
+          group: "3D 项目",
+          title: item.name,
+          meta: `${item.status || "制作中"} · ${item.stage || "建模"} · ${item.client_name || "未填写客户"}`,
+          action: () => {
+            setActiveModule("archive_3d");
+            setProject(item);
+            setGlobalFinderOpen(false);
+          },
+        }));
+      groups.push(...projectMatches);
+    }
+    if (includeScope("admin") && auth?.user?.role === "admin") {
+      const userMatches = adminData.users
+        .filter((item) => [item.display_name, item.username, item.role].join(" ").toLowerCase().includes(keyword))
+        .slice(0, 8)
+        .map((item) => ({
+          id: `user-${item.id}`,
+          group: "系统管理",
+          title: item.display_name,
+          meta: `@${item.username} · ${item.role === "admin" ? "管理员" : "普通用户"}`,
+          action: () => {
+            setActiveModule("admin");
+            setAdminFilters((current) => ({ ...current, userQuery: item.username }));
+            setGlobalFinderOpen(false);
+          },
+        }));
+      groups.push(...userMatches);
+    }
+    return groups.slice(0, 24);
+  }, [globalFinderQuery, globalFinderScope, learningItems, learningSqlSnippets, projects, adminData.users, auth?.user?.role]);
 
   async function loadModules() {
     try {
@@ -2729,19 +2971,52 @@ function App() {
             {learningTemplatePickerOpen ? (
               <div className="learning-template-picker">
                 <strong>知识库模板</strong>
-                <div className="learning-template-list">
-                  {LEARNING_TEMPLATES.map((template) => (
-                    <button
-                      key={template.key}
-                      type="button"
-                      className="learning-template-card"
-                      onClick={() => createLearningItemFromTemplate(template)}
-                    >
-                      <span>{template.name}</span>
-                      <small>{template.category} · {template.priority}优先级</small>
-                    </button>
-                  ))}
+                <div className="learning-template-section">
+                  <div className="learning-template-section-head">
+                    <span>内置模板</span>
+                  </div>
+                  <div className="learning-template-list">
+                    {LEARNING_TEMPLATES.map((template) => (
+                      <button
+                        key={template.key}
+                        type="button"
+                        className="learning-template-card"
+                        onClick={() => createLearningItemFromTemplate(template)}
+                      >
+                        <span>{template.name}</span>
+                        <small>{template.category} · {template.priority}优先级</small>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {learningCustomTemplates.length ? (
+                  <div className="learning-template-section">
+                    <div className="learning-template-section-head">
+                      <span>自定义模板</span>
+                    </div>
+                    <div className="learning-template-list">
+                      {learningCustomTemplates.map((template) => (
+                        <div key={template.key} className="learning-template-custom-row">
+                          <button
+                            type="button"
+                            className="learning-template-card"
+                            onClick={() => createLearningItemFromTemplate(template)}
+                          >
+                            <span>{template.name}</span>
+                            <small>{template.category} · {template.priority}优先级</small>
+                          </button>
+                          <button
+                            type="button"
+                            className="learning-template-delete"
+                            onClick={() => deleteLearningTemplate(template.key)}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -2955,6 +3230,28 @@ function App() {
                           onChange={(event) => setLearningSqlLibraryQuery(event.target.value)}
                         />
                       </div>
+                      <div className="learning-sql-library-filters">
+                        <div className="learning-sql-filter-row">
+                          <select
+                            value={learningSqlLibraryCategory}
+                            onChange={(event) => setLearningSqlLibraryCategory(event.target.value)}
+                          >
+                            <option value="all">全部分类</option>
+                            {learningSqlLibraryCategories.map((item) => (
+                              <option key={`snippet-category-${item}`} value={item}>{item}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={learningSqlLibraryTag}
+                            onChange={(event) => setLearningSqlLibraryTag(event.target.value)}
+                          >
+                            <option value="all">全部标签</option>
+                            {learningSqlLibraryTags.map((item) => (
+                              <option key={`snippet-tag-${item}`} value={item}>{item}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                       <div className="learning-sql-library-list">
                         {filteredLearningSqlSnippets.slice(0, 12).map((snippet) => (
                           <article className="learning-sql-snippet-card" key={snippet.id}>
@@ -3078,7 +3375,28 @@ function App() {
               </button>
             </div>
             <div className="project-list">
-              {projects.map((item) => (
+              <div className="archive-project-filters">
+                <input
+                  className="archive-project-search"
+                  value={archiveProjectQuery}
+                  placeholder="搜索项目、客户、联系人"
+                  onChange={(event) => setArchiveProjectQuery(event.target.value)}
+                />
+                <select
+                  className="archive-project-stage-select"
+                  value={archiveProjectStageFilter}
+                  onChange={(event) => setArchiveProjectStageFilter(event.target.value)}
+                >
+                  <option value="all">全部阶段</option>
+                  <option value="需求">需求</option>
+                  <option value="建模">建模</option>
+                  <option value="贴图">贴图</option>
+                  <option value="灯光">灯光</option>
+                  <option value="渲染">渲染</option>
+                  <option value="交付">交付</option>
+                </select>
+              </div>
+              {archiveVisibleProjects.map((item) => (
                 <button
                   key={item.id}
                   className={`project-row ${project?.id === item.id ? "active" : ""}`}
@@ -3094,6 +3412,9 @@ function App() {
                   <small>{formatSize(item.total_size)}</small>
                 </button>
               ))}
+              {!archiveVisibleProjects.length ? (
+                <div className="empty-state module-empty">没有匹配的项目</div>
+              ) : null}
             </div>
             {project ? (
               <div className={`archive-project-panel ${archiveProjectPanelOpen ? "expanded" : "collapsed"}`}>
@@ -3335,6 +3656,9 @@ function App() {
                 <IconButton label="备份数据库" onClick={backup}>
                   <Shield size={17} />
                 </IconButton>
+                <IconButton label="全局搜索" onClick={() => setGlobalFinderOpen(true)}>
+                  <Search size={17} />
+                </IconButton>
                 <IconButton label="退出登录" onClick={logout}>
                   <LogOut size={17} />
                 </IconButton>
@@ -3362,6 +3686,9 @@ function App() {
                 <span><strong>{learningStats.pinned}</strong> 已置顶</span>
               </div>
               <div className="toolbar">
+                <IconButton label="全局搜索" onClick={() => setGlobalFinderOpen(true)}>
+                  <Search size={17} />
+                </IconButton>
                 <IconButton label="退出登录" onClick={logout}>
                   <LogOut size={17} />
                 </IconButton>
@@ -3369,6 +3696,9 @@ function App() {
             </div>
           ) : (
             <div className="toolbar">
+              <IconButton label="全局搜索" onClick={() => setGlobalFinderOpen(true)}>
+                <Search size={17} />
+              </IconButton>
               <IconButton label="退出登录" onClick={logout}>
                 <LogOut size={17} />
               </IconButton>
@@ -3740,6 +4070,9 @@ function App() {
                                 >
                                   {learningDraft.is_pinned ? "取消置顶" : "设为置顶"}
                                 </button>
+                                <button type="button" onClick={saveLearningTemplateFromCurrentDoc}>
+                                  存为模板
+                                </button>
                                 {isSqlContent(learningDraft.content) ? (
                                   <button type="button" onClick={formatLearningSqlDraft}>
                                     格式化 SQL
@@ -3882,23 +4215,6 @@ function App() {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="learning-tag-picker">
-                              <span>从已有标签库里连续选择多个标签</span>
-                              {availableLearningTagChoices.length ? (
-                                <div className="learning-tag-suggestions">
-                                  {availableLearningTagChoices.slice(0, 10).map((tag) => (
-                                    <button
-                                      key={`quick-tag-${tag}`}
-                                      type="button"
-                                      onMouseDown={(event) => event.preventDefault()}
-                                      onClick={() => addLearningTag(tag)}
-                                    >
-                                      #{tag}
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </div>
                             {learningTagSuggestOpen && !filteredLearningTagSuggestions.length && availableLearningTagChoices.length ? (
                               <div className="learning-tag-picker">
                                 <span>没有匹配项，请从已有标签中选择</span>
@@ -3924,12 +4240,14 @@ function App() {
                               </div>
                               <div className="learning-outline-list">
                                 {learningOutline.map((item) => (
-                                  <span
+                                  <button
+                                    type="button"
                                     key={item.id}
                                     className={`learning-outline-chip level-${item.level}`}
+                                    onClick={() => scrollLearningOutlineTo(item.anchor)}
                                   >
                                     {item.title}
-                                  </span>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -3965,7 +4283,7 @@ function App() {
                                   <strong>即时预览</strong>
                                   <span>边写边看排版效果</span>
                                 </div>
-                                <article className="learning-content-preview">
+                                <article ref={learningSplitPreviewRef} className="learning-content-preview">
                                   {renderLearningContent(learningDraft.content)}
                                 </article>
                               </div>
@@ -4053,12 +4371,14 @@ function App() {
                               </div>
                               <div className="learning-outline-list">
                                 {learningOutline.map((item) => (
-                                  <span
+                                  <button
+                                    type="button"
                                     key={item.id}
                                     className={`learning-outline-chip level-${item.level}`}
+                                    onClick={() => scrollLearningOutlineTo(item.anchor)}
                                   >
                                     {item.title}
-                                  </span>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -4073,7 +4393,7 @@ function App() {
                               <strong>阅读视图</strong>
                               <span>{canEditActiveModule ? "点击正文或上方编辑按钮开始修改" : "当前账号仅可阅读"}</span>
                             </div>
-                            <article className="learning-content-preview">
+                            <article ref={learningReadPreviewRef} className="learning-content-preview">
                               {renderLearningContent(learningDraft.content)}
                             </article>
                           </div>
@@ -4400,9 +4720,14 @@ function App() {
               })}
             </div>
             <section className="admin-audit-section">
-              <div className="admin-section-title">
-                <strong>操作日志</strong>
-                <span>查看账号、模块、项目和知识库的关键操作记录</span>
+              <div className="admin-section-title admin-section-title-with-actions">
+                <div>
+                  <strong>操作日志</strong>
+                  <span>查看账号、模块、项目和知识库的关键操作记录</span>
+                </div>
+                <div className="admin-section-head-actions">
+                  <button type="button" onClick={exportAuditLogs}>导出 CSV</button>
+                </div>
               </div>
               <div className="admin-filter-row">
                 <input
@@ -4440,6 +4765,67 @@ function App() {
           </section>
         ) : null}
       </section>
+
+      {globalFinderOpen ? (
+        <div className="modal-backdrop">
+          <section className="modal global-finder-modal">
+            <div className="modal-head global-finder-head">
+              <div>
+                <strong>全局搜索</strong>
+                <span>跨知识库、SQL 片段、3D 项目和系统管理快速跳转</span>
+              </div>
+              <button onClick={() => setGlobalFinderOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="searchbox">
+              <Search size={16} />
+              <input
+                ref={globalFinderInputRef}
+                value={globalFinderQuery}
+                placeholder="搜索文档、片段、项目、用户"
+                onChange={(event) => setGlobalFinderQuery(event.target.value)}
+              />
+            </div>
+            <div className="global-finder-scope">
+              {[
+                ["all", "全部"],
+                ["learning", "知识库"],
+                ["snippet", "SQL 片段"],
+                ["archive", "3D 项目"],
+                ["admin", "系统管理"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={globalFinderScope === value ? "active" : ""}
+                  onClick={() => setGlobalFinderScope(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="global-finder-results">
+              {globalFinderResults.map((item) => (
+                <button
+                  key={`${item.group}-${item.id}`}
+                  type="button"
+                  className="global-finder-row"
+                  onClick={() => {
+                    item.action();
+                    setGlobalFinderOpen(false);
+                  }}
+                >
+                  <span className="global-finder-group">{item.group}</span>
+                  <strong>{item.title}</strong>
+                  <small>{item.meta}</small>
+                </button>
+              ))}
+              {!globalFinderResults.length ? (
+                <div className="empty-version">没有匹配结果，换个关键词试试。</div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {trashOpen ? (
         <div className="modal-backdrop">
