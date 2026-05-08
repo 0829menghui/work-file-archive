@@ -32,6 +32,7 @@ function resolveApiBase() {
 
 const API = resolveApiBase();
 const LEARNING_VIEW_STORAGE_KEY = "work-file-archive-learning-view-mode";
+const LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY = "work-file-archive-learning-dock-top";
 
 function getLearningDraftStorageKey(itemId) {
   return `work-file-archive-learning-draft-${itemId}`;
@@ -831,6 +832,11 @@ function App() {
     const value = raw ? Number(raw) : 360;
     return Number.isFinite(value) ? Math.min(Math.max(value, 280), 560) : 360;
   });
+  const [learningUtilityDockTop, setLearningUtilityDockTop] = useState(() => {
+    const raw = localStorage.getItem(LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY);
+    const value = raw ? Number(raw) : 84;
+    return Number.isFinite(value) ? Math.max(72, value) : 84;
+  });
   const [learningSidebarPanels, setLearningSidebarPanels] = useState(() => ({
     filters: true,
     categories: false,
@@ -860,6 +866,15 @@ function App() {
   const learningWorkspaceRef = useRef(null);
   const learningTagInputRef = useRef(null);
   const learningUtilityDockRef = useRef(null);
+
+  function clampLearningUtilityDockTop(nextTop, panelOpen = Boolean(learningUtilityPanel)) {
+    const shell = learningUtilityDockRef.current?.parentElement;
+    const shellHeight = shell?.clientHeight || window.innerHeight || 0;
+    const reservedSpace = panelOpen ? 430 : 76;
+    const minTop = 72;
+    const maxTop = Math.max(minTop, shellHeight - reservedSpace);
+    return Math.min(Math.max(Math.round(nextTop), minTop), maxTop);
+  }
 
   const token = auth?.token;
   const tree = useMemo(() => buildTree(folders), [folders]);
@@ -1047,6 +1062,19 @@ function App() {
   useEffect(() => {
     localStorage.setItem("work-file-archive-learning-tree-width", String(learningTreeWidth));
   }, [learningTreeWidth]);
+
+  useEffect(() => {
+    localStorage.setItem(LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY, String(learningUtilityDockTop));
+  }, [learningUtilityDockTop]);
+
+  useEffect(() => {
+    setLearningUtilityDockTop((current) => clampLearningUtilityDockTop(current));
+    const handleResize = () => {
+      setLearningUtilityDockTop((current) => clampLearningUtilityDockTop(current));
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [learningUtilityPanel]);
 
   useEffect(() => {
     if (!selectedLearningItem) {
@@ -2095,6 +2123,28 @@ function App() {
     window.addEventListener("mouseup", onUp);
   }
 
+  function startLearningUtilityDockDrag(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const shell = learningUtilityDockRef.current?.parentElement;
+    const dockBounds = learningUtilityDockRef.current?.getBoundingClientRect();
+    const shellBounds = shell?.getBoundingClientRect();
+    if (!shellBounds || !dockBounds) return;
+    const offsetY = event.clientY - dockBounds.top;
+    const onMove = (moveEvent) => {
+      const nextTop = moveEvent.clientY - shellBounds.top - offsetY;
+      setLearningUtilityDockTop(clampLearningUtilityDockTop(nextTop));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.classList.remove("is-resizing");
+    };
+    document.body.classList.add("is-resizing");
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
   function toggleLearningSidebarPanel(panelKey) {
     setLearningSidebarPanels((current) => ({
       ...current,
@@ -2305,6 +2355,7 @@ function App() {
             <div
               ref={learningUtilityDockRef}
               className={`learning-utility-dock ${learningUtilityPanel ? "open" : ""}`}
+              style={{ top: `${learningUtilityDockTop}px` }}
             >
               <button
                 type="button"
@@ -2312,7 +2363,11 @@ function App() {
                 title={learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
                 onClick={() => setLearningUtilityPanel((current) => current ? null : "filters")}
               >
-                <span className="learning-utility-handle-badge">
+                <span
+                  className="learning-utility-handle-badge"
+                  title="按住拖动侧栏位置"
+                  onPointerDown={startLearningUtilityDockDrag}
+                >
                   <ChevronRight size={18} />
                 </span>
                 <span>{learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}</span>

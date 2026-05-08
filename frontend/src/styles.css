@@ -932,8 +932,6 @@ textarea:focus-visible {
 .learning-utility-dock {
   position: absolute;
   left: -98px;
-  top: 84px;
-  bottom: 12px;
   width: 84px;
   z-index: 12;
   pointer-events: none;
@@ -951,7 +949,7 @@ textarea:focus-visible {
 .learning-utility-handle {
   position: absolute;
   left: 0;
-  top: 12px;
+  top: 0;
   min-height: 56px;
   padding: 0 22px 0 10px;
   display: inline-flex;
@@ -973,10 +971,16 @@ textarea:focus-visible {
   flex: 0 0 auto;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
+  cursor: grab;
 }
 
 .learning-utility-handle-badge svg {
   transition: transform 140ms ease;
+  pointer-events: none;
+}
+
+.learning-utility-handle-badge:active {
+  cursor: grabbing;
 }
 
 .learning-utility-handle.open .learning-utility-handle-badge svg {
@@ -992,7 +996,7 @@ textarea:focus-visible {
 .learning-utility-popover {
   position: absolute;
   left: 86px;
-  top: 76px;
+  top: 64px;
   width: 330px;
   max-height: min(520px, calc(100vh - 180px));
   display: grid;
