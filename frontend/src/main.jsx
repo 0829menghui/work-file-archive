@@ -866,13 +866,19 @@ function App() {
   const learningWorkspaceRef = useRef(null);
   const learningTagInputRef = useRef(null);
   const learningUtilityDockRef = useRef(null);
+  const learningUtilityDragStateRef = useRef({
+    dragging: false,
+    pointerId: null,
+    startY: 0,
+    startTop: 84,
+    moved: false,
+  });
 
   function clampLearningUtilityDockTop(nextTop, panelOpen = Boolean(learningUtilityPanel)) {
-    const shell = learningUtilityDockRef.current?.parentElement;
-    const shellHeight = shell?.clientHeight || window.innerHeight || 0;
-    const reservedSpace = panelOpen ? 430 : 76;
+    const viewportHeight = window.innerHeight || 0;
+    const reservedSpace = panelOpen ? 440 : 104;
     const minTop = 72;
-    const maxTop = Math.max(minTop, shellHeight - reservedSpace);
+    const maxTop = Math.max(minTop, viewportHeight - reservedSpace);
     return Math.min(Math.max(Math.round(nextTop), minTop), maxTop);
   }
 
@@ -2123,24 +2129,38 @@ function App() {
     window.addEventListener("mouseup", onUp);
   }
 
-  function startLearningUtilityDockDrag(event) {
+  function handleLearningUtilityHandlePointerDown(event) {
     event.preventDefault();
     event.stopPropagation();
-    const shell = learningUtilityDockRef.current?.parentElement;
-    const dockBounds = learningUtilityDockRef.current?.getBoundingClientRect();
-    const shellBounds = shell?.getBoundingClientRect();
-    if (!shellBounds || !dockBounds) return;
-    const offsetY = event.clientY - dockBounds.top;
+    const dragState = learningUtilityDragStateRef.current;
+    dragState.dragging = true;
+    dragState.pointerId = event.pointerId;
+    dragState.startY = event.clientY;
+    dragState.startTop = learningUtilityDockTop;
+    dragState.moved = false;
     const onMove = (moveEvent) => {
-      const nextTop = moveEvent.clientY - shellBounds.top - offsetY;
-      setLearningUtilityDockTop(clampLearningUtilityDockTop(nextTop));
+      if (moveEvent.pointerId !== dragState.pointerId) return;
+      const deltaY = moveEvent.clientY - dragState.startY;
+      if (!dragState.moved && Math.abs(deltaY) > 4) {
+        dragState.moved = true;
+        document.body.classList.add("is-resizing");
+      }
+      if (!dragState.moved) return;
+      setLearningUtilityDockTop(clampLearningUtilityDockTop(dragState.startTop + deltaY));
     };
-    const onUp = () => {
+    const onUp = (upEvent) => {
+      if (upEvent.pointerId !== dragState.pointerId) return;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       document.body.classList.remove("is-resizing");
+      const didMove = dragState.moved;
+      dragState.dragging = false;
+      dragState.pointerId = null;
+      dragState.moved = false;
+      if (!didMove) {
+        setLearningUtilityPanel((current) => (current ? null : "filters"));
+      }
     };
-    document.body.classList.add("is-resizing");
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
@@ -2361,16 +2381,14 @@ function App() {
                 type="button"
                 className={`learning-utility-handle ${learningUtilityPanel ? "open" : ""}`}
                 title={learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
-                onClick={() => setLearningUtilityPanel((current) => current ? null : "filters")}
+                onPointerDown={handleLearningUtilityHandlePointerDown}
               >
-                <span
-                  className="learning-utility-handle-badge"
-                  title="按住拖动侧栏位置"
-                  onPointerDown={startLearningUtilityDockDrag}
-                >
+                <span className="learning-utility-handle-badge" title="轻点展开，拖动可移动位置">
                   <ChevronRight size={18} />
                 </span>
-                <span>{learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}</span>
+                <span className="learning-utility-handle-label">
+                  {learningUtilityPanel ? "收起资料侧栏" : "资料侧栏"}
+                </span>
               </button>
 
               {learningUtilityPanel ? (
