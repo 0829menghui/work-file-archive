@@ -63,6 +63,8 @@ def init_db() -> None:
                 name TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
                 sort_order INTEGER NOT NULL DEFAULT 0,
+                is_enabled INTEGER NOT NULL DEFAULT 1,
+                is_hidden INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
 
@@ -81,8 +83,11 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 client_name TEXT NOT NULL DEFAULT '',
+                contact_name TEXT NOT NULL DEFAULT '',
                 owner_id INTEGER REFERENCES users(id),
                 status TEXT NOT NULL DEFAULT '制作中',
+                stage TEXT NOT NULL DEFAULT '建模',
+                delivery_date TEXT NOT NULL DEFAULT '',
                 description TEXT NOT NULL DEFAULT '',
                 is_archived INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
@@ -214,6 +219,24 @@ def init_db() -> None:
             conn.execute(
                 "ALTER TABLE user_module_permissions ADD COLUMN access_level TEXT NOT NULL DEFAULT 'edit'"
             )
+        module_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(modules)").fetchall()
+        }
+        if "is_enabled" not in module_columns:
+            conn.execute("ALTER TABLE modules ADD COLUMN is_enabled INTEGER NOT NULL DEFAULT 1")
+        if "is_hidden" not in module_columns:
+            conn.execute("ALTER TABLE modules ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0")
+        project_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(projects)").fetchall()
+        }
+        if "contact_name" not in project_columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN contact_name TEXT NOT NULL DEFAULT ''")
+        if "stage" not in project_columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN stage TEXT NOT NULL DEFAULT '建模'")
+        if "delivery_date" not in project_columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN delivery_date TEXT NOT NULL DEFAULT ''")
         learning_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(learning_items)").fetchall()

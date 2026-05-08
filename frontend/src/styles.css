@@ -624,6 +624,38 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.recent-search-row {
+  display: grid;
+  gap: 8px;
+}
+
+.recent-search-row > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recent-search-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.recent-search-row button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d9e6ec;
+  border-radius: 999px;
+  background: #f7fbfd;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.recent-search-row-topbar {
+  margin-top: 10px;
+}
+
 .archive-project-panel label {
   display: grid;
   gap: 6px;
@@ -1140,6 +1172,12 @@ textarea:focus-visible {
   border: 1px solid #dce7ec;
   border-radius: 10px;
   background: #ffffff;
+}
+
+.learning-sql-snippet-actions {
+  display: grid;
+  gap: 6px;
+  align-content: start;
 }
 
 .learning-sql-snippet-main {
@@ -2457,6 +2495,35 @@ textarea:focus-visible {
   color: #ffffff;
 }
 
+.learning-template-picker {
+  margin: 0 12px 12px;
+  padding: 12px;
+  border: 1px solid #dce7ed;
+  border-radius: 10px;
+  background: #fbfdfe;
+  display: grid;
+  gap: 10px;
+}
+
+.learning-template-list {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-template-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #dce7ed;
+  border-radius: 10px;
+  background: #ffffff;
+  text-align: left;
+}
+
+.learning-template-card small {
+  color: var(--muted);
+}
+
 .secondary-button {
   min-height: 40px;
   padding: 0 14px;
@@ -2533,7 +2600,7 @@ textarea:focus-visible {
   height: 44px;
   display: grid;
   place-items: center;
-  grid-row: span 4;
+  grid-row: span 6;
   border-radius: 8px;
   background: #e9f5f7;
   color: var(--accent);
@@ -2544,6 +2611,20 @@ textarea:focus-visible {
   gap: 5px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.admin-toggle {
+  grid-column: 2;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  color: var(--text) !important;
+  font-size: 13px;
+}
+
+.admin-toggle input {
+  width: 16px;
+  height: 16px;
 }
 
 .admin-module-card button {
@@ -2698,6 +2779,60 @@ textarea:focus-visible {
 .admin-user-list {
   display: grid;
   gap: 10px;
+}
+
+.admin-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-filter-row input,
+.admin-filter-row select {
+  min-height: 38px;
+  border: 1px solid #ccd8e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.admin-audit-section {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.admin-audit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-audit-row {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #dce7ed;
+  border-radius: 8px;
+  background: #fbfdfe;
+}
+
+.admin-audit-row > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-audit-row span,
+.admin-audit-row small,
+.admin-audit-row time {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .admin-user-row {

@@ -328,6 +328,8 @@ def list_modules(user: dict = Depends(require_user)) -> list[dict]:
                 LEFT JOIN user_module_permissions ump
                     ON ump.module_key = m.key AND ump.user_id = ?
                 WHERE COALESCE(ump.can_view, 0) = 1
+                  AND COALESCE(m.is_enabled, 1) = 1
+                  AND COALESCE(m.is_hidden, 0) = 0
                 ORDER BY m.sort_order, m.id
                 """,
                 (user["id"],),
@@ -361,6 +363,37 @@ def admin_list_users(user: dict = Depends(require_admin)) -> dict:
         ],
         "modules": [dict(row) for row in modules],
     }
+
+
+@app.get("/api/admin/audit-logs")
+def admin_list_audit_logs(
+    q: str = "",
+    target_type: str = "all",
+    user: dict = Depends(require_admin),
+) -> dict:
+    filters = ["1 = 1"]
+    params: list[str] = []
+    keyword = (q or "").strip()
+    if keyword:
+        filters.append("(al.action LIKE ? OR al.detail LIKE ? OR u.display_name LIKE ? OR u.username LIKE ?)")
+        like = f"%{keyword}%"
+        params.extend([like, like, like, like])
+    if target_type and target_type != "all":
+        filters.append("al.target_type = ?")
+        params.append(target_type)
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT al.*, u.display_name AS user_display_name, u.username
+            FROM audit_logs al
+            LEFT JOIN users u ON u.id = al.user_id
+            WHERE {' AND '.join(filters)}
+            ORDER BY al.created_at DESC, al.id DESC
+            LIMIT 120
+            """,
+            params,
+        ).fetchall()
+    return {"logs": [dict(row) for row in rows]}
 
 
 @app.post("/api/admin/users")
@@ -531,6 +564,8 @@ def admin_update_module(
     name = (payload.get("name") or "").strip()
     description = (payload.get("description") or "").strip()
     sort_order = payload.get("sort_order")
+    is_enabled = 1 if payload.get("is_enabled", True) else 0
+    is_hidden = 1 if payload.get("is_hidden", False) else 0
     if not name:
         raise HTTPException(status_code=400, detail="模块名称不能为空")
     try:
@@ -544,30 +579,48 @@ def admin_update_module(
         conn.execute(
             """
             UPDATE modules
-            SET name = ?, description = ?, sort_order = ?
+            SET name = ?, description = ?, sort_order = ?, is_enabled = ?, is_hidden = ?
             WHERE key = ?
             """,
-            (name, description, sort_order_value, module_key),
+            (name, description, sort_order_value, is_enabled, is_hidden, module_key),
         )
         log_action(conn, user["id"], "update_module", "module", target["id"], module_key)
     return {"ok": True}
 
 
 @app.get("/api/projects")
-def list_projects(user: dict = Depends(require_user)) -> list[dict]:
+def list_projects(
+    q: str = "",
+    status: str = "all",
+    user: dict = Depends(require_user),
+) -> list[dict]:
+    filters = ["1 = 1"]
+    params: list[str] = []
+    keyword = (q or "").strip()
+    if keyword:
+        filters.append(
+            "(p.name LIKE ? OR p.client_name LIKE ? OR COALESCE(p.contact_name, '') LIKE ? OR COALESCE(p.description, '') LIKE ?)"
+        )
+        like = f"%{keyword}%"
+        params.extend([like, like, like, like])
+    if status and status != "all":
+        filters.append("p.status = ?")
+        params.append(status)
     with get_db() as conn:
         ensure_module_access(conn, user, "archive_3d")
         rows = conn.execute(
-            """
+            f"""
             SELECT p.*, u.display_name AS owner_name,
                    COALESCE(SUM(CASE WHEN f.is_deleted = 0 THEN f.size ELSE 0 END), 0) AS total_size,
                    COUNT(DISTINCT CASE WHEN f.is_deleted = 0 THEN f.id END) AS file_count
             FROM projects p
             LEFT JOIN users u ON u.id = p.owner_id
             LEFT JOIN files f ON f.project_id = p.id
+            WHERE {' AND '.join(filters)}
             GROUP BY p.id
             ORDER BY p.updated_at DESC
-            """
+            """,
+            params,
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -582,14 +635,17 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
     with get_db() as conn:
         cur = conn.execute(
             """
-            INSERT INTO projects (name, client_name, owner_id, status, description, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO projects (name, client_name, contact_name, owner_id, status, stage, delivery_date, description, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
                 (payload.get("client_name") or "").strip(),
+                (payload.get("contact_name") or "").strip(),
                 user["id"],
                 payload.get("status") or "制作中",
+                (payload.get("stage") or "建模").strip() or "建模",
+                (payload.get("delivery_date") or "").strip(),
                 (payload.get("description") or "").strip(),
                 now,
                 now,
@@ -620,7 +676,7 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
 
 @app.patch("/api/projects/{project_id}")
 def update_project(project_id: int, payload: dict, user: dict = Depends(require_user)) -> dict:
-    allowed = {"name", "client_name", "status", "description"}
+    allowed = {"name", "client_name", "contact_name", "status", "stage", "delivery_date", "description"}
     updates = []
     values = []
     for key in allowed:

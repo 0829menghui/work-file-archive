@@ -33,9 +33,120 @@ function resolveApiBase() {
 const API = resolveApiBase();
 const LEARNING_VIEW_STORAGE_KEY = "work-file-archive-learning-view-mode";
 const LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY = "work-file-archive-learning-dock-top";
+const LEARNING_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-learning-recent-searches";
+const ARCHIVE_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-archive-recent-searches";
+
+const LEARNING_TEMPLATES = [
+  {
+    key: "study-note",
+    name: "学习笔记",
+    category: "学习笔记",
+    tags: "学习笔记",
+    status: "进行中",
+    priority: "中",
+    content: [
+      "# 本次学习主题",
+      "",
+      "## 学习目标",
+      "- 目标 1",
+      "- 目标 2",
+      "",
+      "## 关键知识点",
+      "- 结论 1",
+      "- 结论 2",
+      "",
+      "## 复盘",
+      "> 今天最值得沉淀的点是什么？",
+    ].join("\n"),
+  },
+  {
+    key: "sql-template",
+    name: "SQL 模板",
+    category: "SQL",
+    tags: "SQL",
+    status: "计划中",
+    priority: "中",
+    content: [
+      "## SQL 名称",
+      "",
+      "- 用途：",
+      "- 来源表：",
+      "- 输出口径：",
+      "- 注意事项：",
+      "",
+      "```sql",
+      "select *",
+      "from table_name",
+      "where dt = '${biz_date}';",
+      "```",
+    ].join("\n"),
+  },
+  {
+    key: "review-template",
+    name: "复盘模板",
+    category: "复盘",
+    tags: "复盘",
+    status: "计划中",
+    priority: "中",
+    content: [
+      "# 事件背景",
+      "",
+      "## 做得好的",
+      "- ",
+      "",
+      "## 暴露的问题",
+      "- ",
+      "",
+      "## 后续动作",
+      "- [ ] ",
+    ].join("\n"),
+  },
+  {
+    key: "troubleshoot-template",
+    name: "问题排查模板",
+    category: "问题排查",
+    tags: "排查, SQL",
+    status: "进行中",
+    priority: "高",
+    content: [
+      "# 问题描述",
+      "",
+      "## 现象",
+      "- ",
+      "",
+      "## 排查路径",
+      "- ",
+      "",
+      "## 关键 SQL",
+      "```sql",
+      "select * from table_name limit 100;",
+      "```",
+      "",
+      "## 结论",
+      "> ",
+    ].join("\n"),
+  },
+];
+
+const PROJECT_STAGE_OPTIONS = ["建模", "材质", "灯光", "渲染", "导出", "交付", "归档"];
 
 function getLearningDraftStorageKey(itemId) {
   return `work-file-archive-learning-draft-${itemId}`;
+}
+
+function parseRecentSearches(raw) {
+  try {
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecentSearch(list, value) {
+  const next = (value || "").trim();
+  if (!next) return list;
+  return [next, ...list.filter((item) => item !== next)].slice(0, 8);
 }
 
 function formatSize(bytes = 0) {
@@ -455,6 +566,25 @@ function guessSqlSnippetTitle(sql = "", fallback = "SQL 片段") {
   return compact.length > 28 ? `${compact.slice(0, 28)}...` : compact || fallback;
 }
 
+function extractSqlSnippetMeta(sql = "") {
+  const lines = (sql || "").split(/\r?\n/).map((line) => line.trim());
+  const meta = {
+    purpose: "",
+    sourceTable: "",
+  };
+  lines.forEach((line) => {
+    if (!meta.purpose) {
+      const match = line.match(/^--\s*(?:用途|说明)\s*[:：]\s*(.+)$/);
+      if (match) meta.purpose = match[1].trim();
+    }
+    if (!meta.sourceTable) {
+      const match = line.match(/^--\s*(?:来源表|源表)\s*[:：]\s*(.+)$/);
+      if (match) meta.sourceTable = match[1].trim();
+    }
+  });
+  return meta;
+}
+
 function extractSqlSnippetsFromItem(item) {
   if (!item || item.item_type === "folder") return [];
   const content = item.content || "";
@@ -471,6 +601,7 @@ function extractSqlSnippetsFromItem(item) {
       tags: parseLearningTags(item.tags || ""),
       content: formatSql(trimmed),
       rawContent: trimmed,
+      ...extractSqlSnippetMeta(trimmed),
       updatedAt: item.updated_at || "",
     }];
   }
@@ -505,6 +636,7 @@ function extractSqlSnippetsFromItem(item) {
               tags: parseLearningTags(item.tags || ""),
               content: formatSql(snippetText),
               rawContent: snippetText,
+              ...extractSqlSnippetMeta(snippetText),
               updatedAt: item.updated_at || "",
             });
           }
@@ -725,7 +857,10 @@ function buildProjectDraft(item) {
   return {
     name: item?.name || "",
     client_name: item?.client_name || "",
+    contact_name: item?.contact_name || "",
     status: item?.status || "制作中",
+    stage: item?.stage || "建模",
+    delivery_date: item?.delivery_date || "",
     description: item?.description || "",
   };
 }
@@ -792,7 +927,11 @@ function App() {
     query: "",
     kind: "all",
     scope: "folder",
+    status: "all",
   });
+  const [archiveRecentSearches, setArchiveRecentSearches] = useState(() =>
+    parseRecentSearches(localStorage.getItem(ARCHIVE_RECENT_SEARCH_STORAGE_KEY))
+  );
   const [message, setMessage] = useState("");
   const [trashOpen, setTrashOpen] = useState(false);
   const [trash, setTrash] = useState([]);
@@ -803,6 +942,9 @@ function App() {
     status: "all",
     itemType: "all",
   });
+  const [learningRecentSearches, setLearningRecentSearches] = useState(() =>
+    parseRecentSearches(localStorage.getItem(LEARNING_RECENT_SEARCH_STORAGE_KEY))
+  );
   const [selectedLearningId, setSelectedLearningId] = useState(null);
   const [selectedLearningIds, setSelectedLearningIds] = useState([]);
   const [learningBatchTargetParentId, setLearningBatchTargetParentId] = useState("");
@@ -846,8 +988,16 @@ function App() {
   const [learningUtilityPanel, setLearningUtilityPanel] = useState(null);
   const [learningHistoryOpen, setLearningHistoryOpen] = useState(false);
   const [learningSqlLibraryQuery, setLearningSqlLibraryQuery] = useState("");
-  const [adminData, setAdminData] = useState({ users: [], modules: [] });
+  const [archiveSearchTick, setArchiveSearchTick] = useState(0);
+  const [adminData, setAdminData] = useState({ users: [], modules: [], logs: [] });
   const [moduleDrafts, setModuleDrafts] = useState({});
+  const [adminFilters, setAdminFilters] = useState({
+    userQuery: "",
+    status: "all",
+    logQuery: "",
+    logTargetType: "all",
+  });
+  const [learningTemplatePickerOpen, setLearningTemplatePickerOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     username: "",
     display_name: "",
@@ -1032,6 +1182,8 @@ function App() {
         snippet.itemTitle,
         snippet.category,
         snippet.tags.join(" "),
+        snippet.purpose,
+        snippet.sourceTable,
         snippet.rawContent,
       ]
         .join(" ")
@@ -1039,6 +1191,40 @@ function App() {
         .includes(keyword)
     );
   }, [learningSqlSnippets, learningSqlLibraryQuery]);
+  const filteredAdminUsers = useMemo(() => {
+    const keyword = adminFilters.userQuery.trim().toLowerCase();
+    return adminData.users.filter((item) => {
+      const statusMatched = adminFilters.status === "all"
+        || (adminFilters.status === "active" && item.is_active)
+        || (adminFilters.status === "inactive" && !item.is_active)
+        || (adminFilters.status === "admin" && item.role === "admin")
+        || (adminFilters.status === "user" && item.role === "user");
+      if (!statusMatched) return false;
+      if (!keyword) return true;
+      return [item.username, item.display_name, item.role]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [adminData.users, adminFilters.userQuery, adminFilters.status]);
+  const filteredAuditLogs = useMemo(() => {
+    const keyword = adminFilters.logQuery.trim().toLowerCase();
+    return adminData.logs.filter((item) => {
+      const typeMatched = adminFilters.logTargetType === "all" || item.target_type === adminFilters.logTargetType;
+      if (!typeMatched) return false;
+      if (!keyword) return true;
+      return [
+        item.action,
+        item.detail,
+        item.target_type,
+        item.user_display_name || "",
+        item.username || "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [adminData.logs, adminFilters.logQuery, adminFilters.logTargetType]);
 
   useEffect(() => {
     if (auth) {
@@ -1060,6 +1246,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem("work-file-archive-learning-custom-tags", JSON.stringify(learningCustomTags));
   }, [learningCustomTags]);
+
+  useEffect(() => {
+    localStorage.setItem(LEARNING_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(learningRecentSearches));
+  }, [learningRecentSearches]);
+
+  useEffect(() => {
+    localStorage.setItem(ARCHIVE_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(archiveRecentSearches));
+  }, [archiveRecentSearches]);
 
   useEffect(() => {
     localStorage.setItem(LEARNING_VIEW_STORAGE_KEY, learningViewMode);
@@ -1173,7 +1367,7 @@ function App() {
     setDetail(null);
     if (!activeModuleInfo && activeModule !== "admin") return;
     if (activeModuleAccess === "none" && activeModule !== "admin") return;
-    if (activeModule === "archive_3d") loadProjects();
+    if (activeModule === "archive_3d") loadProjects(archiveSearch);
     if (activeModule === "learning") loadLearningItems();
     if (activeModule === "admin" && auth.user.role === "admin") loadAdminData();
   }, [activeModule, auth?.token, modules.length]);
@@ -1193,6 +1387,15 @@ function App() {
   useEffect(() => {
     if (activeFolder) loadItems(activeFolder.id);
   }, [activeFolder?.id]);
+
+  useEffect(() => {
+    if (activeModule !== "archive_3d") return undefined;
+    const timer = window.setTimeout(() => {
+      loadProjects(archiveSearch);
+      if (activeFolder) loadItems(activeFolder.id, archiveSearch);
+    }, 260);
+    return () => window.clearTimeout(timer);
+  }, [archiveSearch.query, archiveSearch.kind, archiveSearch.scope, archiveSearch.status, archiveSearchTick, activeModule, activeFolder?.id]);
 
   useEffect(() => {
     setSelectedArchiveIds((current) => current.filter((id) => items.files.some((file) => file.id === id)));
@@ -1294,9 +1497,13 @@ function App() {
     }
   }
 
-  async function loadProjects() {
+  async function loadProjects(search = archiveSearch) {
     try {
-      const data = await apiFetch("/projects", {}, token);
+      const params = new URLSearchParams();
+      if (search.query) params.set("q", search.query);
+      if (search.status && search.status !== "all") params.set("status", search.status);
+      const suffix = params.size ? `?${params.toString()}` : "";
+      const data = await apiFetch(`/projects${suffix}`, {}, token);
       setProjects(data);
       setProject((current) => {
         if (!data.length) return null;
@@ -1349,14 +1556,19 @@ function App() {
   async function loadAdminData() {
     if (auth?.user?.role !== "admin") return;
     try {
-      const data = await apiFetch("/admin/users", {}, token);
-      setAdminData(data);
+      const [data, logs] = await Promise.all([
+        apiFetch("/admin/users", {}, token),
+        apiFetch("/admin/audit-logs", {}, token),
+      ]);
+      setAdminData({ ...data, logs: logs.logs || [] });
       setModuleDrafts(Object.fromEntries(data.modules.map((module) => [
         module.key,
         {
           name: module.name,
           description: module.description || "",
           sort_order: module.sort_order ?? 0,
+          is_enabled: Boolean(module.is_enabled ?? 1),
+          is_hidden: Boolean(module.is_hidden ?? 0),
         },
       ])));
       setNewUser((current) => ({
@@ -1771,22 +1983,26 @@ function App() {
   }
 
   async function createLearningItem() {
+    return createLearningItemWithPayload({
+      title: `未命名文档 ${learningItems.length + 1}`,
+      parent_id: selectedLearningFolderId,
+      item_type: "doc",
+      category: "学习笔记",
+      status: "计划中",
+      priority: "中",
+      content: "",
+      resource_url: "",
+    }, "已新建文档");
+  }
+
+  async function createLearningItemWithPayload(payload, successMessage = "已新建文档") {
     if (!canEditActiveModule) return;
     try {
       const created = await apiFetch(
         "/learning/items",
         {
           method: "POST",
-          body: JSON.stringify({
-            title: `未命名文档 ${learningItems.length + 1}`,
-            parent_id: selectedLearningFolderId,
-            item_type: "doc",
-            category: "学习笔记",
-            status: "计划中",
-            priority: "中",
-            content: "",
-            resource_url: "",
-          }),
+          body: JSON.stringify(payload),
         },
         token
       );
@@ -1794,10 +2010,30 @@ function App() {
       setSelectedLearningId(created.id);
       setLearningDraft(buildLearningDraft(normalizeLearningItem(created)));
       setLearningEditing(true);
-      setMessage("已新建文档");
+      setLearningTemplatePickerOpen(false);
+      setMessage(successMessage);
+      return created;
     } catch (err) {
       showError(err);
     }
+  }
+
+  async function createLearningItemFromTemplate(template) {
+    if (!template) return;
+    await createLearningItemWithPayload(
+      {
+        title: `${template.name} ${learningItems.filter((item) => item.item_type === "doc").length + 1}`,
+        parent_id: selectedLearningFolderId,
+        item_type: "doc",
+        category: template.category,
+        tags: template.tags,
+        status: template.status,
+        priority: template.priority,
+        content: template.content,
+        resource_url: "",
+      },
+      `已从模板创建：${template.name}`
+    );
   }
 
   async function createLearningFolder() {
@@ -2087,6 +2323,57 @@ function App() {
     setLearningEditing(false);
   }
 
+  function insertLearningSqlSnippet(snippet) {
+    if (!selectedLearningItem || selectedLearningItem.item_type !== "doc") {
+      setMessage("请先选中一个文档，再插入 SQL 片段");
+      return;
+    }
+    if (!canEditActiveModule) {
+      setMessage("当前账号只有查看权限，不能插入片段");
+      return;
+    }
+    const snippetText = snippet.rawContent || snippet.content || "";
+    if (!snippetText) return;
+    setLearningEditing(true);
+    setLearningViewMode("write");
+    setLearningDraft((current) => ({
+      ...current,
+      content: current.content
+        ? `${current.content.trimEnd()}\n\n${snippetText}\n`
+        : snippetText,
+      category: current.category || snippet.category || "SQL",
+      tags: Array.from(new Set([...parseLearningTags(current.tags || ""), ...snippet.tags])).join(", "),
+    }));
+    setMessage(`已插入 SQL 片段：${snippet.title}`);
+  }
+
+  async function createDocumentFromSnippet(snippet) {
+    if (!snippet) return;
+    const title = `${snippet.title} 模板`;
+    const tags = Array.from(new Set([...(snippet.tags || []), "SQL"])).join(", ");
+    await createLearningItemWithPayload(
+      {
+        title,
+        parent_id: selectedLearningFolderId,
+        item_type: "doc",
+        category: snippet.category || "SQL",
+        tags,
+        status: "计划中",
+        priority: "中",
+        content: [
+          snippet.purpose ? `- 用途：${snippet.purpose}` : "",
+          snippet.sourceTable ? `- 来源表：${snippet.sourceTable}` : "",
+          "",
+          "```sql",
+          snippet.rawContent || snippet.content || "",
+          "```",
+        ].filter(Boolean).join("\n"),
+        resource_url: "",
+      },
+      `已从片段创建文档：${snippet.title}`
+    );
+  }
+
   async function restoreLearningVersion(version) {
     if (!canEditActiveModule) return;
     if (!window.confirm(`确定恢复到 ${version.created_at?.slice(0, 16).replace("T", " ")} 的版本吗？`)) return;
@@ -2295,6 +2582,23 @@ function App() {
     }
   }
 
+  function applyArchiveSearchPatch(patch, { reloadFiles = false, reloadProjects = false, remember = false } = {}) {
+    const next = { ...archiveSearch, ...patch };
+    setArchiveSearch(next);
+    if (remember && (patch.query || "").trim()) {
+      setArchiveRecentSearches((current) => pushRecentSearch(current, patch.query));
+    }
+    if (reloadProjects) loadProjects(next);
+    if (reloadFiles && activeFolder) loadItems(activeFolder.id, next);
+  }
+
+  function applyLearningSearchQuery(query) {
+    setLearningFilters((current) => ({ ...current, query }));
+    if (query.trim()) {
+      setLearningRecentSearches((current) => pushRecentSearch(current, query));
+    }
+  }
+
   function logout() {
     localStorage.removeItem("work-file-archive-auth");
     setAuth(null);
@@ -2355,6 +2659,12 @@ function App() {
               <span>知识目录</span>
               {canEditActiveModule ? (
                 <div className="section-actions">
+                  <button
+                    title="模板建文档"
+                    onClick={() => setLearningTemplatePickerOpen((current) => !current)}
+                  >
+                    <FileBox size={16} />
+                  </button>
                   <button title="新建文件夹" onClick={createLearningFolder}>
                     <FolderPlus size={16} />
                   </button>
@@ -2371,6 +2681,24 @@ function App() {
                 </div>
               ) : null}
             </div>
+            {learningTemplatePickerOpen ? (
+              <div className="learning-template-picker">
+                <strong>知识库模板</strong>
+                <div className="learning-template-list">
+                  {LEARNING_TEMPLATES.map((template) => (
+                    <button
+                      key={template.key}
+                      type="button"
+                      className="learning-template-card"
+                      onClick={() => createLearningItemFromTemplate(template)}
+                    >
+                      <span>{template.name}</span>
+                      <small>{template.category} · {template.priority}优先级</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div
               ref={learningUtilityDockRef}
@@ -2452,9 +2780,21 @@ function App() {
                           <input
                             value={learningFilters.query}
                             placeholder="搜索标题、分类、正文、链接"
-                            onChange={(event) => setLearningFilters((current) => ({ ...current, query: event.target.value }))}
+                            onChange={(event) => applyLearningSearchQuery(event.target.value)}
                           />
                         </div>
+                        {learningRecentSearches.length ? (
+                          <div className="recent-search-row">
+                            <span>最近搜索</span>
+                            <div>
+                              {learningRecentSearches.map((term) => (
+                                <button key={`learning-search-${term}`} type="button" onClick={() => applyLearningSearchQuery(term)}>
+                                  {term}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                         <div className="learning-filter-row">
                           <select
                             value={learningFilters.status}
@@ -2517,7 +2857,10 @@ function App() {
                                 key={`tag-filter-${item}`}
                                 type="button"
                                 className={learningFilters.query === item ? "active" : ""}
-                                onClick={() => toggleLearningTagFilter(item)}
+                                onClick={() => {
+                                  toggleLearningTagFilter(item);
+                                  setLearningRecentSearches((current) => pushRecentSearch(current, item));
+                                }}
                               >
                                 #{item}
                               </button>
@@ -2577,15 +2920,35 @@ function App() {
                             >
                               <strong>{snippet.title}</strong>
                               <span>{snippet.itemTitle}</span>
-                              <small>{snippet.category || "未分类"}</small>
+                              <small>
+                                {snippet.category || "未分类"}
+                                {snippet.purpose ? ` · ${snippet.purpose}` : ""}
+                                {snippet.sourceTable ? ` · ${snippet.sourceTable}` : ""}
+                              </small>
                             </button>
-                            <button
-                              type="button"
-                              className="learning-sql-snippet-copy"
-                              onClick={() => copyLearningSqlSnippet(snippet)}
-                            >
-                              复制
-                            </button>
+                            <div className="learning-sql-snippet-actions">
+                              <button
+                                type="button"
+                                className="learning-sql-snippet-copy"
+                                onClick={() => insertLearningSqlSnippet(snippet)}
+                              >
+                                插入
+                              </button>
+                              <button
+                                type="button"
+                                className="learning-sql-snippet-copy"
+                                onClick={() => createDocumentFromSnippet(snippet)}
+                              >
+                                建文档
+                              </button>
+                              <button
+                                type="button"
+                                className="learning-sql-snippet-copy"
+                                onClick={() => copyLearningSqlSnippet(snippet)}
+                              >
+                                复制
+                              </button>
+                            </div>
                           </article>
                         ))}
                         {!filteredLearningSqlSnippets.length ? (
@@ -2730,6 +3093,15 @@ function App() {
                         />
                       </label>
                       <label>
+                        <span>联系人</span>
+                        <input
+                          value={projectDraft.contact_name}
+                          readOnly={!canEditActiveModule}
+                          placeholder="对接人 / 联系方式"
+                          onChange={(event) => setProjectDraft((current) => ({ ...current, contact_name: event.target.value }))}
+                        />
+                      </label>
+                      <label>
                         <span>状态</span>
                         <select
                           value={projectDraft.status}
@@ -2741,6 +3113,27 @@ function App() {
                           <option>已交付</option>
                           <option>已归档</option>
                         </select>
+                      </label>
+                      <label>
+                        <span>阶段</span>
+                        <select
+                          value={projectDraft.stage}
+                          disabled={!canEditActiveModule}
+                          onChange={(event) => setProjectDraft((current) => ({ ...current, stage: event.target.value }))}
+                        >
+                          {PROJECT_STAGE_OPTIONS.map((item) => (
+                            <option key={item} value={item}>{item}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>交付日期</span>
+                        <input
+                          type="date"
+                          value={projectDraft.delivery_date || ""}
+                          readOnly={!canEditActiveModule}
+                          onChange={(event) => setProjectDraft((current) => ({ ...current, delivery_date: event.target.value }))}
+                        />
                       </label>
                     </div>
                     <label>
@@ -2836,9 +3229,14 @@ function App() {
                   <input
                     value={archiveSearch.query}
                     placeholder={archiveSearch.scope === "project" ? "搜索整个项目文件" : "搜索当前目录文件"}
-                    onChange={(event) => setArchiveSearch((current) => ({ ...current, query: event.target.value }))}
+                    onChange={(event) => applyArchiveSearchPatch({ query: event.target.value })}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && activeFolder) loadItems(activeFolder.id);
+                      if (event.key === "Enter") {
+                        setArchiveSearchTick((current) => current + 1);
+                        if (archiveSearch.query.trim()) {
+                          setArchiveRecentSearches((current) => pushRecentSearch(current, archiveSearch.query));
+                        }
+                      }
                     }}
                   />
                 </div>
@@ -2846,9 +3244,7 @@ function App() {
                   className="toolbar-select"
                   value={archiveSearch.scope}
                   onChange={(event) => {
-                    const next = { ...archiveSearch, scope: event.target.value };
-                    setArchiveSearch(next);
-                    if (activeFolder) loadItems(activeFolder.id, next);
+                    applyArchiveSearchPatch({ scope: event.target.value }, { reloadFiles: true });
                   }}
                 >
                   <option value="folder">当前目录</option>
@@ -2858,9 +3254,7 @@ function App() {
                   className="toolbar-select"
                   value={archiveSearch.kind}
                   onChange={(event) => {
-                    const next = { ...archiveSearch, kind: event.target.value };
-                    setArchiveSearch(next);
-                    if (activeFolder) loadItems(activeFolder.id, next);
+                    applyArchiveSearchPatch({ kind: event.target.value }, { reloadFiles: true });
                   }}
                 >
                   <option value="all">全部类型</option>
@@ -2870,6 +3264,19 @@ function App() {
                   <option value="video">视频预览</option>
                   <option value="doc">文档文本</option>
                   <option value="archive">压缩包</option>
+                </select>
+                <select
+                  className="toolbar-select"
+                  value={archiveSearch.status}
+                  onChange={(event) => {
+                    applyArchiveSearchPatch({ status: event.target.value }, { reloadProjects: true });
+                  }}
+                >
+                  <option value="all">全部项目状态</option>
+                  <option value="制作中">制作中</option>
+                  <option value="待确认">待确认</option>
+                  <option value="已交付">已交付</option>
+                  <option value="已归档">已归档</option>
                 </select>
                 <IconButton label="刷新" onClick={() => activeFolder && loadItems(activeFolder.id)}>
                   <RefreshCw size={17} />
@@ -2887,6 +3294,18 @@ function App() {
                   <LogOut size={17} />
                 </IconButton>
               </div>
+              {archiveRecentSearches.length ? (
+                <div className="recent-search-row recent-search-row-topbar">
+                  <span>最近搜索</span>
+                  <div>
+                    {archiveRecentSearches.map((term) => (
+                      <button key={`archive-search-${term}`} type="button" onClick={() => applyArchiveSearchPatch({ query: term }, { reloadProjects: true, reloadFiles: true })}>
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : activeModule === "learning" ? (
             <div className="topbar-actions">
@@ -3605,6 +4024,10 @@ function App() {
                           <FolderPlus size={15} />
                           新建子文件夹
                         </button>
+                        <button type="button" onClick={() => setLearningTemplatePickerOpen((current) => !current)}>
+                          <FileBox size={15} />
+                          模板建文档
+                        </button>
                         <button type="button" className="primary-button" onClick={createLearningItem}>
                           <Plus size={15} />
                           新建文档
@@ -3665,6 +4088,22 @@ function App() {
                           value={draft.sort_order ?? 0}
                           onChange={(event) => setModuleDraft(module.key, { sort_order: event.target.value })}
                         />
+                      </label>
+                      <label className="admin-toggle">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(draft.is_enabled)}
+                          onChange={(event) => setModuleDraft(module.key, { is_enabled: event.target.checked })}
+                        />
+                        <span>启用模块</span>
+                      </label>
+                      <label className="admin-toggle">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(draft.is_hidden)}
+                          onChange={(event) => setModuleDraft(module.key, { is_hidden: event.target.checked })}
+                        />
+                        <span>在普通用户侧隐藏</span>
                       </label>
                       <button type="button" onClick={() => updateModule(module)}>保存模块</button>
                     </article>
@@ -3731,7 +4170,7 @@ function App() {
                     <span key={module.key}>{module.name}</span>
                   ))}
                 </div>
-                {adminData.users.map((item) => {
+                {filteredAdminUsers.map((item) => {
                   const isSelf = item.id === auth.user.id;
                   return (
                     <div className={`admin-permission-row ${item.is_active ? "" : "inactive"}`} key={item.id}>
@@ -3780,7 +4219,24 @@ function App() {
                 <strong>账号管理</strong>
                 <span>修改账号资料、角色、状态和密码</span>
               </div>
-              {adminData.users.map((item) => {
+              <div className="admin-filter-row">
+                <input
+                  placeholder="搜索用户、角色"
+                  value={adminFilters.userQuery}
+                  onChange={(event) => setAdminFilters((current) => ({ ...current, userQuery: event.target.value }))}
+                />
+                <select
+                  value={adminFilters.status}
+                  onChange={(event) => setAdminFilters((current) => ({ ...current, status: event.target.value }))}
+                >
+                  <option value="all">全部账号</option>
+                  <option value="active">启用中</option>
+                  <option value="inactive">已停用</option>
+                  <option value="admin">管理员</option>
+                  <option value="user">普通用户</option>
+                </select>
+              </div>
+              {filteredAdminUsers.map((item) => {
                 const isSelf = item.id === auth.user.id;
                 return (
                   <div className={`admin-user-row ${item.is_active ? "" : "inactive"}`} key={item.id}>
@@ -3838,6 +4294,44 @@ function App() {
                 );
               })}
             </div>
+            <section className="admin-audit-section">
+              <div className="admin-section-title">
+                <strong>操作日志</strong>
+                <span>查看账号、模块、项目和知识库的关键操作记录</span>
+              </div>
+              <div className="admin-filter-row">
+                <input
+                  placeholder="搜索操作、人员、详情"
+                  value={adminFilters.logQuery}
+                  onChange={(event) => setAdminFilters((current) => ({ ...current, logQuery: event.target.value }))}
+                />
+                <select
+                  value={adminFilters.logTargetType}
+                  onChange={(event) => setAdminFilters((current) => ({ ...current, logTargetType: event.target.value }))}
+                >
+                  <option value="all">全部对象</option>
+                  <option value="user">用户</option>
+                  <option value="module">模块</option>
+                  <option value="project">项目</option>
+                  <option value="folder">目录</option>
+                  <option value="learning_item">知识库</option>
+                  <option value="file">文件</option>
+                </select>
+              </div>
+              <div className="admin-audit-list">
+                {filteredAuditLogs.map((log) => (
+                  <article key={log.id} className="admin-audit-row">
+                    <div>
+                      <strong>{log.action}</strong>
+                      <span>{log.user_display_name || log.username || "系统"} · {log.target_type || "未知对象"}</span>
+                    </div>
+                    <small>{log.detail || "无额外说明"}</small>
+                    <time>{log.created_at?.replace("T", " ").slice(0, 16)}</time>
+                  </article>
+                ))}
+                {!filteredAuditLogs.length ? <div className="empty-version">没有匹配的操作日志</div> : null}
+              </div>
+            </section>
           </section>
         ) : null}
       </section>
