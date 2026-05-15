@@ -88,6 +88,7 @@ def init_db() -> None:
                 status TEXT NOT NULL DEFAULT '制作中',
                 stage TEXT NOT NULL DEFAULT '建模',
                 delivery_date TEXT NOT NULL DEFAULT '',
+                delivery_notes TEXT NOT NULL DEFAULT '',
                 description TEXT NOT NULL DEFAULT '',
                 is_archived INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
@@ -130,6 +131,7 @@ def init_db() -> None:
                 size INTEGER NOT NULL,
                 remark TEXT NOT NULL DEFAULT '',
                 is_effective INTEGER NOT NULL DEFAULT 1,
+                is_final INTEGER NOT NULL DEFAULT 0,
                 uploaded_by INTEGER REFERENCES users(id),
                 created_at TEXT NOT NULL
             );
@@ -237,6 +239,12 @@ def init_db() -> None:
             conn.execute("ALTER TABLE projects ADD COLUMN stage TEXT NOT NULL DEFAULT '建模'")
         if "delivery_date" not in project_columns:
             conn.execute("ALTER TABLE projects ADD COLUMN delivery_date TEXT NOT NULL DEFAULT ''")
+        if "delivery_notes" not in project_columns:
+            conn.execute("ALTER TABLE projects ADD COLUMN delivery_notes TEXT NOT NULL DEFAULT ''")
+        if "is_final" not in columns:
+            conn.execute(
+                "ALTER TABLE file_versions ADD COLUMN is_final INTEGER NOT NULL DEFAULT 0"
+            )
         learning_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(learning_items)").fetchall()

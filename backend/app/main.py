@@ -459,6 +459,44 @@ def admin_update_user_modules(
     return {"ok": True}
 
 
+@app.post("/api/admin/users/{target_user_id}/copy-modules")
+def admin_copy_user_modules(
+    target_user_id: int,
+    payload: dict,
+    user: dict = Depends(require_admin),
+) -> dict:
+    source_user_id = int(payload.get("source_user_id") or 0)
+    if not source_user_id or source_user_id == target_user_id:
+        raise HTTPException(status_code=400, detail="请选择不同的源用户")
+    now = utc_now()
+    with get_db() as conn:
+        target = conn.execute("SELECT * FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        source = conn.execute("SELECT * FROM users WHERE id = ?", (source_user_id,)).fetchone()
+        if not target or not source:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        modules = conn.execute("SELECT key FROM modules").fetchall()
+        module_keys = {row["key"] for row in modules}
+        source_rows = conn.execute(
+            "SELECT module_key, can_view, access_level FROM user_module_permissions WHERE user_id = ?",
+            (source_user_id,),
+        ).fetchall()
+        module_permissions = {
+            row["module_key"]: (row["access_level"] if row["can_view"] else "none")
+            for row in source_rows
+            if row["module_key"] in module_keys
+        }
+        apply_user_module_permissions(conn, target_user_id, module_permissions, module_keys, now)
+        log_action(
+            conn,
+            user["id"],
+            "copy_user_modules",
+            "user",
+            target_user_id,
+            f"from @{source['username']} to @{target['username']}",
+        )
+    return {"ok": True}
+
+
 @app.patch("/api/admin/users/{target_user_id}")
 def admin_update_user(
     target_user_id: int,
@@ -635,8 +673,8 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
     with get_db() as conn:
         cur = conn.execute(
             """
-            INSERT INTO projects (name, client_name, contact_name, owner_id, status, stage, delivery_date, description, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO projects (name, client_name, contact_name, owner_id, status, stage, delivery_date, delivery_notes, description, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
@@ -646,6 +684,7 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
                 payload.get("status") or "制作中",
                 (payload.get("stage") or "建模").strip() or "建模",
                 (payload.get("delivery_date") or "").strip(),
+                (payload.get("delivery_notes") or "").strip(),
                 (payload.get("description") or "").strip(),
                 now,
                 now,
@@ -676,7 +715,7 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
 
 @app.patch("/api/projects/{project_id}")
 def update_project(project_id: int, payload: dict, user: dict = Depends(require_user)) -> dict:
-    allowed = {"name", "client_name", "contact_name", "status", "stage", "delivery_date", "description"}
+    allowed = {"name", "client_name", "contact_name", "status", "stage", "delivery_date", "delivery_notes", "description"}
     updates = []
     values = []
     for key in allowed:
@@ -1103,6 +1142,49 @@ def update_version_effectiveness(
             (version_id,),
         ).fetchone()
         return dict(updated)
+
+
+@app.patch("/api/file-versions/{version_id}/final")
+def update_version_final_flag(
+    version_id: int,
+    payload: dict,
+    user: dict = Depends(require_user),
+) -> dict:
+    is_final = 1 if payload.get("is_final") else 0
+    with get_db() as conn:
+        version = conn.execute(
+            """
+            SELECT fv.*, f.folder_id, f.name AS file_name
+            FROM file_versions fv
+            JOIN files f ON f.id = fv.file_id
+            WHERE fv.id = ?
+            """,
+            (version_id,),
+        ).fetchone()
+        if not version:
+            raise HTTPException(status_code=404, detail="版本不存在")
+        ensure_permission(conn, user, version["folder_id"], ("write",))
+        if is_final:
+            conn.execute("UPDATE file_versions SET is_final = 0 WHERE file_id = ?", (version["file_id"],))
+        conn.execute("UPDATE file_versions SET is_final = ? WHERE id = ?", (is_final, version_id))
+        log_action(
+            conn,
+            user["id"],
+            "update_version_final",
+            "file_version",
+            version_id,
+            f"{version['file_name']} v{version['version_no']} -> {'final' if is_final else 'normal'}",
+        )
+        updated = conn.execute(
+            """
+            SELECT fv.*, u.display_name AS uploaded_by_name
+            FROM file_versions fv
+            LEFT JOIN users u ON u.id = fv.uploaded_by
+            WHERE fv.id = ?
+            """,
+            (version_id,),
+        ).fetchone()
+    return dict(updated)
 
 
 @app.get("/api/files/{file_id}/download")

@@ -36,6 +36,7 @@ const LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY = "work-file-archive-learning-dock-t
 const LEARNING_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-learning-recent-searches";
 const ARCHIVE_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-archive-recent-searches";
 const LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY = "work-file-archive-learning-custom-templates";
+const GLOBAL_FINDER_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-global-recent-searches";
 
 const LEARNING_TEMPLATES = [
   {
@@ -656,6 +657,9 @@ function extractSqlSnippetMeta(sql = "") {
   const meta = {
     purpose: "",
     sourceTable: "",
+    targetTable: "",
+    owner: "",
+    notes: "",
   };
   lines.forEach((line) => {
     if (!meta.purpose) {
@@ -666,8 +670,35 @@ function extractSqlSnippetMeta(sql = "") {
       const match = line.match(/^--\s*(?:来源表|源表)\s*[:：]\s*(.+)$/);
       if (match) meta.sourceTable = match[1].trim();
     }
+    if (!meta.targetTable) {
+      const match = line.match(/^--\s*(?:目标表|结果表|落地表)\s*[:：]\s*(.+)$/);
+      if (match) meta.targetTable = match[1].trim();
+    }
+    if (!meta.owner) {
+      const match = line.match(/^--\s*(?:负责人|维护人)\s*[:：]\s*(.+)$/);
+      if (match) meta.owner = match[1].trim();
+    }
+    if (!meta.notes) {
+      const match = line.match(/^--\s*(?:口径|注意事项|备注)\s*[:：]\s*(.+)$/);
+      if (match) meta.notes = match[1].trim();
+    }
   });
   return meta;
+}
+
+function highlightMatch(text, keyword) {
+  const source = String(text || "");
+  const query = String(keyword || "").trim();
+  if (!query) return source;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "ig");
+  const parts = source.split(regex);
+  if (parts.length === 1) return source;
+  return parts.map((part, index) =>
+    part.toLowerCase() === query.toLowerCase()
+      ? <mark key={`${part}-${index}`}>{part}</mark>
+      : <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>
+  );
 }
 
 function extractSqlSnippetsFromItem(item) {
@@ -1020,6 +1051,7 @@ function buildProjectDraft(item) {
     status: item?.status || "制作中",
     stage: item?.stage || "建模",
     delivery_date: item?.delivery_date || "",
+    delivery_notes: item?.delivery_notes || "",
     description: item?.description || "",
   };
 }
@@ -1104,6 +1136,9 @@ function App() {
   const [learningRecentSearches, setLearningRecentSearches] = useState(() =>
     parseRecentSearches(localStorage.getItem(LEARNING_RECENT_SEARCH_STORAGE_KEY))
   );
+  const [globalFinderRecentSearches, setGlobalFinderRecentSearches] = useState(() =>
+    parseRecentSearches(localStorage.getItem(GLOBAL_FINDER_RECENT_SEARCH_STORAGE_KEY))
+  );
   const [selectedLearningId, setSelectedLearningId] = useState(null);
   const [selectedLearningIds, setSelectedLearningIds] = useState([]);
   const [learningBatchTargetParentId, setLearningBatchTargetParentId] = useState("");
@@ -1171,6 +1206,7 @@ function App() {
     logTargetType: "all",
   });
   const [learningTemplatePickerOpen, setLearningTemplatePickerOpen] = useState(false);
+  const [selectedLearningTemplatePreview, setSelectedLearningTemplatePreview] = useState(null);
   const [newUser, setNewUser] = useState({
     username: "",
     display_name: "",
@@ -1178,6 +1214,7 @@ function App() {
     role: "user",
     module_permissions: {},
   });
+  const [adminPermissionCopySource, setAdminPermissionCopySource] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragOverFolderId, setDragOverFolderId] = useState(null);
   const [dragOverLearningId, setDragOverLearningId] = useState(null);
@@ -1378,6 +1415,9 @@ function App() {
         snippet.tags.join(" "),
         snippet.purpose,
         snippet.sourceTable,
+        snippet.targetTable,
+        snippet.owner,
+        snippet.notes,
         snippet.rawContent,
       ]
         .join(" ")
@@ -1470,6 +1510,10 @@ function App() {
   }, [learningRecentSearches]);
 
   useEffect(() => {
+    localStorage.setItem(GLOBAL_FINDER_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(globalFinderRecentSearches));
+  }, [globalFinderRecentSearches]);
+
+  useEffect(() => {
     localStorage.setItem(ARCHIVE_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(archiveRecentSearches));
   }, [archiveRecentSearches]);
 
@@ -1481,6 +1525,28 @@ function App() {
     if (!globalFinderOpen) return;
     window.requestAnimationFrame(() => globalFinderInputRef.current?.focus());
   }, [globalFinderOpen]);
+
+  useEffect(() => {
+    const keyword = globalFinderQuery.trim();
+    if (!keyword) return undefined;
+    const timer = window.setTimeout(() => {
+      setGlobalFinderRecentSearches((current) => pushRecentSearch(current, keyword));
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [globalFinderQuery]);
+
+  useEffect(() => {
+    if (!learningTemplatePickerOpen) return;
+    const allTemplates = [...LEARNING_TEMPLATES, ...learningCustomTemplates];
+    if (!allTemplates.length) {
+      setSelectedLearningTemplatePreview(null);
+      return;
+    }
+    setSelectedLearningTemplatePreview((current) => {
+      if (current && allTemplates.some((item) => item.key === current.key)) return current;
+      return allTemplates[0];
+    });
+  }, [learningTemplatePickerOpen, learningCustomTemplates]);
 
   useEffect(() => {
     localStorage.setItem("work-file-archive-learning-tree-width", String(learningTreeWidth));
@@ -1793,7 +1859,17 @@ function App() {
     const keyword = globalFinderQuery.trim().toLowerCase();
     if (!keyword) return [];
     const groups = [];
-    const includeScope = (scope) => globalFinderScope === "all" || globalFinderScope === scope;
+    const currentScope = activeModule === "archive_3d"
+      ? "archive"
+      : activeModule === "learning"
+        ? "learning"
+        : activeModule === "admin"
+          ? "admin"
+          : "all";
+    const includeScope = (scope) =>
+      globalFinderScope === "all"
+      || globalFinderScope === scope
+      || (globalFinderScope === "current" && currentScope === scope);
     if (includeScope("learning")) {
       const docs = learningItems
         .filter((item) =>
@@ -1803,8 +1879,8 @@ function App() {
         .map((item) => ({
           id: `learning-${item.id}`,
           group: "知识库",
-          title: item.title,
-          meta: `${item.item_type === "folder" ? "文件夹" : "文档"} · ${item.category || "未分类"}`,
+          title: highlightMatch(item.title, globalFinderQuery),
+          meta: highlightMatch(`${item.item_type === "folder" ? "文件夹" : "文档"} · ${item.category || "未分类"}`, globalFinderQuery),
           action: () => {
             setActiveModule("learning");
             selectLearningItem(item);
@@ -1822,8 +1898,17 @@ function App() {
         .map((item) => ({
           id: `snippet-${item.id}`,
           group: "SQL 片段",
-          title: item.title,
-          meta: `${item.itemTitle} · ${item.category || "SQL"}`,
+          title: highlightMatch(item.title, globalFinderQuery),
+          meta: highlightMatch(
+            [
+              item.itemTitle,
+              item.category || "SQL",
+              item.purpose || "",
+              item.sourceTable || "",
+              item.targetTable || "",
+            ].filter(Boolean).join(" · "),
+            globalFinderQuery
+          ),
           action: () => {
             setActiveModule("learning");
             openLearningSnippetSource(item);
@@ -1844,8 +1929,8 @@ function App() {
         .map((item) => ({
           id: `project-${item.id}`,
           group: "3D 项目",
-          title: item.name,
-          meta: `${item.status || "制作中"} · ${item.stage || "建模"} · ${item.client_name || "未填写客户"}`,
+          title: highlightMatch(item.name, globalFinderQuery),
+          meta: highlightMatch(`${item.status || "制作中"} · ${item.stage || "建模"} · ${item.client_name || "未填写客户"}`, globalFinderQuery),
           action: () => {
             setActiveModule("archive_3d");
             setProject(item);
@@ -1861,8 +1946,8 @@ function App() {
         .map((item) => ({
           id: `user-${item.id}`,
           group: "系统管理",
-          title: item.display_name,
-          meta: `@${item.username} · ${item.role === "admin" ? "管理员" : "普通用户"}`,
+          title: highlightMatch(item.display_name, globalFinderQuery),
+          meta: highlightMatch(`@${item.username} · ${item.role === "admin" ? "管理员" : "普通用户"}`, globalFinderQuery),
           action: () => {
             setActiveModule("admin");
             setAdminFilters((current) => ({ ...current, userQuery: item.username }));
@@ -1872,7 +1957,7 @@ function App() {
       groups.push(...userMatches);
     }
     return groups.slice(0, 24);
-  }, [globalFinderQuery, globalFinderScope, learningItems, learningSqlSnippets, projects, adminData.users, auth?.user?.role]);
+  }, [globalFinderQuery, globalFinderScope, activeModule, learningItems, learningSqlSnippets, projects, adminData.users, auth?.user?.role]);
 
   async function loadModules() {
     try {
@@ -2292,6 +2377,22 @@ function App() {
         setDetail(nextDetail);
       }
       setMessage(isEffective ? "版本已恢复为有效" : "版本已标记为失效");
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  async function setVersionFinal(version, isFinal) {
+    if (!canEditActiveModule || !selectedFile) return;
+    try {
+      await apiFetch(
+        `/file-versions/${version.id}/final`,
+        { method: "PATCH", body: JSON.stringify({ is_final: isFinal }) },
+        token
+      );
+      const nextDetail = await apiFetch(`/files/${selectedFile.id}`, {}, token);
+      setDetail(nextDetail);
+      setMessage(isFinal ? "已标记为最终版" : "已取消最终版");
     } catch (err) {
       showError(err);
     }
@@ -2885,6 +2986,25 @@ function App() {
     }
   }
 
+  async function copyUserModulePermissions(targetUser, sourceUserId) {
+    if (!sourceUserId) {
+      setMessage("请选择要复制的来源账号");
+      return;
+    }
+    try {
+      await apiFetch(
+        `/admin/users/${targetUser.id}/copy-modules`,
+        { method: "POST", body: JSON.stringify({ source_user_id: Number(sourceUserId) }) },
+        token
+      );
+      await loadAdminData();
+      setAdminPermissionCopySource("");
+      setMessage(`已复制授权到 ${targetUser.display_name}`);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function updateUser(targetUser, patch, successMessage = "用户已更新") {
     try {
       await apiFetch(
@@ -3059,53 +3179,90 @@ function App() {
             </div>
             {learningTemplatePickerOpen ? (
               <div className="learning-template-picker">
-                <strong>知识库模板</strong>
-                <div className="learning-template-section">
-                  <div className="learning-template-section-head">
-                    <span>内置模板</span>
+                <div className="learning-template-picker-head">
+                  <div>
+                    <strong>知识库模板</strong>
+                    <span>先看模板结构，再决定是否创建文档。</span>
                   </div>
-                  <div className="learning-template-list">
-                    {LEARNING_TEMPLATES.map((template) => (
-                      <button
-                        key={template.key}
-                        type="button"
-                        className="learning-template-card"
-                        onClick={() => createLearningItemFromTemplate(template)}
-                      >
-                        <span>{template.name}</span>
-                        <small>{template.category} · {template.priority}优先级</small>
-                      </button>
-                    ))}
-                  </div>
+                  <button type="button" className="secondary-button" onClick={() => setLearningTemplatePickerOpen(false)}>
+                    收起
+                  </button>
                 </div>
-                {learningCustomTemplates.length ? (
-                  <div className="learning-template-section">
-                    <div className="learning-template-section-head">
-                      <span>自定义模板</span>
-                    </div>
-                    <div className="learning-template-list">
-                      {learningCustomTemplates.map((template) => (
-                        <div key={template.key} className="learning-template-custom-row">
+                <div className="learning-template-picker-layout">
+                  <div className="learning-template-picker-side">
+                    <div className="learning-template-section">
+                      <div className="learning-template-section-head">
+                        <span>内置模板</span>
+                      </div>
+                      <div className="learning-template-list">
+                        {LEARNING_TEMPLATES.map((template) => (
                           <button
+                            key={template.key}
                             type="button"
-                            className="learning-template-card"
-                            onClick={() => createLearningItemFromTemplate(template)}
+                            className={`learning-template-card ${selectedLearningTemplatePreview?.key === template.key ? "active" : ""}`}
+                            onClick={() => setSelectedLearningTemplatePreview(template)}
                           >
                             <span>{template.name}</span>
                             <small>{template.category} · {template.priority}优先级</small>
                           </button>
-                          <button
-                            type="button"
-                            className="learning-template-delete"
-                            onClick={() => deleteLearningTemplate(template.key)}
-                          >
-                            删除
-                          </button>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
+                    {learningCustomTemplates.length ? (
+                      <div className="learning-template-section">
+                        <div className="learning-template-section-head">
+                          <span>自定义模板</span>
+                        </div>
+                        <div className="learning-template-list">
+                          {learningCustomTemplates.map((template) => (
+                            <div key={template.key} className="learning-template-custom-row">
+                              <button
+                                type="button"
+                                className={`learning-template-card ${selectedLearningTemplatePreview?.key === template.key ? "active" : ""}`}
+                                onClick={() => setSelectedLearningTemplatePreview(template)}
+                              >
+                                <span>{template.name}</span>
+                                <small>{template.category} · {template.priority}优先级</small>
+                              </button>
+                              <button
+                                type="button"
+                                className="learning-template-delete"
+                                onClick={() => deleteLearningTemplate(template.key)}
+                              >
+                                删除
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                  {selectedLearningTemplatePreview ? (
+                    <div className="learning-template-preview">
+                      <div className="learning-template-preview-head">
+                        <strong>{selectedLearningTemplatePreview.name}</strong>
+                        <small>
+                          {selectedLearningTemplatePreview.category} · {selectedLearningTemplatePreview.status} · {selectedLearningTemplatePreview.priority}优先级
+                        </small>
+                      </div>
+                      <div className="learning-template-preview-tags">
+                        {parseLearningTags(selectedLearningTemplatePreview.tags || "").map((tag) => (
+                          <span key={`${selectedLearningTemplatePreview.key}-${tag}`}>#{tag}</span>
+                        ))}
+                      </div>
+                      <pre className="learning-template-preview-content">{selectedLearningTemplatePreview.content}</pre>
+                      <div className="learning-template-preview-actions">
+                        <button
+                          type="button"
+                          className="primary-button"
+                          onClick={() => createLearningItemFromTemplate(selectedLearningTemplatePreview)}
+                        >
+                          使用模板创建
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
@@ -3617,6 +3774,15 @@ function App() {
                         onChange={(event) => setProjectDraft((current) => ({ ...current, description: event.target.value }))}
                       />
                     </label>
+                    <label>
+                      <span>交付备注</span>
+                      <textarea
+                        value={projectDraft.delivery_notes}
+                        readOnly={!canEditActiveModule}
+                        placeholder="记录交付版本、素材范围、客户确认点和回传要求"
+                        onChange={(event) => setProjectDraft((current) => ({ ...current, delivery_notes: event.target.value }))}
+                      />
+                    </label>
                     {canEditActiveModule ? (
                       <button
                         type="button"
@@ -4075,6 +4241,9 @@ function App() {
                           <span className={`version-badge ${version.is_effective ? "effective" : "ineffective"}`}>
                             {version.is_effective ? "有效" : "失效"}
                           </span>
+                          {version.is_final ? (
+                            <span className="version-badge final">最终版</span>
+                          ) : null}
                         </strong>
                         <span>{formatSize(version.size)} · {version.uploaded_by_name || "-"}</span>
                         {version.remark ? <small>{version.remark}</small> : null}
@@ -4089,6 +4258,14 @@ function App() {
                             onClick={() => setVersionEffectiveness(version, !version.is_effective)}
                           >
                             {version.is_effective ? "失效" : "有效"}
+                          </button>
+                        ) : null}
+                        {canEditActiveModule ? (
+                          <button
+                            title={version.is_final ? "取消最终版" : "标记为最终版"}
+                            onClick={() => setVersionFinal(version, !version.is_final)}
+                          >
+                            {version.is_final ? "取消最终版" : "设为最终版"}
                           </button>
                         ) : null}
                       </div>
@@ -4688,8 +4865,23 @@ function App() {
             </form>
             <section className="admin-permission-manager">
               <div className="admin-section-title">
-                <strong>用户模块权限</strong>
-                <span>修改已经创建的用户对每个模块的访问级别</span>
+                <div>
+                  <strong>用户模块权限</strong>
+                  <span>修改已经创建的用户对每个模块的访问级别</span>
+                </div>
+                <div className="admin-section-head-actions">
+                  <select
+                    value={adminPermissionCopySource}
+                    onChange={(event) => setAdminPermissionCopySource(event.target.value)}
+                  >
+                    <option value="">选择来源账号，复制他的模块权限</option>
+                    {filteredAdminUsers.map((item) => (
+                      <option key={`permission-source-${item.id}`} value={item.id}>
+                        {item.display_name} @{item.username}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div
                 className="admin-permission-table"
@@ -4710,6 +4902,15 @@ function App() {
                         <span>
                           @{item.username} · {item.role === "admin" ? "管理员" : item.is_active ? "普通用户" : "已停用"}
                         </span>
+                        {adminPermissionCopySource && Number(adminPermissionCopySource) !== item.id ? (
+                          <button
+                            type="button"
+                            className="admin-copy-permission-button"
+                            onClick={() => copyUserModulePermissions(item, adminPermissionCopySource)}
+                          >
+                            复制选中来源授权到该用户
+                          </button>
+                        ) : null}
                       </div>
                       {adminData.modules.map((module) => (
                         <div className="admin-permission-cell" key={module.key}>
@@ -4894,6 +5095,7 @@ function App() {
             <div className="global-finder-scope">
               {[
                 ["all", "全部"],
+                ["current", "当前模块"],
                 ["learning", "知识库"],
                 ["snippet", "SQL 片段"],
                 ["archive", "3D 项目"],
@@ -4909,6 +5111,23 @@ function App() {
                 </button>
               ))}
             </div>
+            {globalFinderRecentSearches.length && !globalFinderQuery.trim() ? (
+              <div className="global-finder-recent">
+                <div className="global-finder-recent-head">
+                  <strong>最近搜索</strong>
+                  <button type="button" onClick={() => setGlobalFinderRecentSearches([])}>
+                    清空
+                  </button>
+                </div>
+                <div className="global-finder-recent-list">
+                  {globalFinderRecentSearches.map((item) => (
+                    <button key={`global-recent-${item}`} type="button" onClick={() => setGlobalFinderQuery(item)}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="global-finder-results">
               {globalFinderResults.map((item) => (
                 <button
