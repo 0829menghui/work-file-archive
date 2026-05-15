@@ -566,12 +566,42 @@ function ModuleIcon({ moduleKey, size = 16 }) {
 }
 
 function renderInlineText(text) {
-  return text.split(/(`[^`]+`)/g).map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={index}>{part.slice(1, -1)}</code>;
+  const parts = [];
+  const pattern = /(`[^`]+`|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*)/g;
+  let lastIndex = 0;
+  let match;
+  let tokenIndex = 0;
+
+  while ((match = pattern.exec(text || "")) !== null) {
+    if (match.index > lastIndex) {
+      parts.push((text || "").slice(lastIndex, match.index));
     }
-    return part;
-  });
+    const token = match[0];
+    if (token.startsWith("`") && token.endsWith("`")) {
+      parts.push(<code key={`code-${tokenIndex}`}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("**") && token.endsWith("**")) {
+      parts.push(<strong key={`strong-${tokenIndex}`}>{token.slice(2, -2)}</strong>);
+    } else {
+      const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch) {
+        parts.push(
+          <a key={`link-${tokenIndex}`} href={linkMatch[2]} target="_blank" rel="noreferrer">
+            {linkMatch[1]}
+          </a>
+        );
+      } else {
+        parts.push(token);
+      }
+    }
+    lastIndex = match.index + token.length;
+    tokenIndex += 1;
+  }
+
+  if (lastIndex < (text || "").length) {
+    parts.push((text || "").slice(lastIndex));
+  }
+
+  return parts;
 }
 
 function isSqlContent(content = "") {
@@ -762,6 +792,7 @@ function renderLearningContent(content) {
   const elements = [];
   let paragraph = [];
   let list = [];
+  let orderedList = [];
   let code = [];
   let codeLanguage = "";
   let table = [];
@@ -789,6 +820,17 @@ function renderLearningContent(content) {
       </ul>
     );
     list = [];
+  };
+  const flushOrderedList = () => {
+    if (!orderedList.length) return;
+    elements.push(
+      <ol key={`ol-${elements.length}`} className="learning-markdown-ordered-list">
+        {orderedList.map((item, index) => (
+          <li key={`${item}-${index}`}>{renderInlineText(item)}</li>
+        ))}
+      </ol>
+    );
+    orderedList = [];
   };
   const flushTable = () => {
     if (!table.length) return;
@@ -827,6 +869,7 @@ function renderLearningContent(content) {
       } else {
         flushParagraph();
         flushList();
+        flushOrderedList();
         flushTable();
         codeLanguage = line.trim().slice(3).trim().toLowerCase();
         inCode = true;
@@ -840,6 +883,7 @@ function renderLearningContent(content) {
     if (!line.trim()) {
       flushParagraph();
       flushList();
+      flushOrderedList();
       flushTable();
       return;
     }
@@ -847,6 +891,7 @@ function renderLearningContent(content) {
     if (heading) {
       flushParagraph();
       flushList();
+      flushOrderedList();
       flushTable();
       const Tag = `h${Math.min(heading[1].length + 1, 4)}`;
       const anchor = `outline-anchor-${lineIndex}-${slugifyLearningAnchor(heading[2])}`;
@@ -861,6 +906,7 @@ function renderLearningContent(content) {
     if (tableLine) {
       flushParagraph();
       flushList();
+      flushOrderedList();
       const cells = line
         .split("|")
         .slice(1, -1)
@@ -870,9 +916,18 @@ function renderLearningContent(content) {
       }
       return;
     }
+    if (/^---+$/.test(line.trim()) || /^\*\*\*+$/.test(line.trim())) {
+      flushParagraph();
+      flushList();
+      flushOrderedList();
+      flushTable();
+      elements.push(<hr key={`hr-${elements.length}`} className="learning-markdown-divider" />);
+      return;
+    }
     const bullet = line.match(/^[-*]\s+(.+)$/);
     if (bullet) {
       flushParagraph();
+      flushOrderedList();
       const todo = bullet[1].match(/^\[( |x|X)\]\s+(.+)$/);
       if (todo) {
         list.push({ checked: todo[1].toLowerCase() === "x", text: todo[2] });
@@ -881,15 +936,25 @@ function renderLearningContent(content) {
       }
       return;
     }
+    const ordered = line.match(/^\d+\.\s+(.+)$/);
+    if (ordered) {
+      flushParagraph();
+      flushList();
+      flushTable();
+      orderedList.push(ordered[1]);
+      return;
+    }
     const quote = line.match(/^>\s?(.+)$/);
     if (quote) {
       flushParagraph();
       flushList();
+      flushOrderedList();
       flushTable();
       elements.push(<blockquote key={`q-${elements.length}`}>{renderInlineText(quote[1])}</blockquote>);
       return;
     }
     flushList();
+    flushOrderedList();
     flushTable();
     paragraph.push(line.trim());
   });
@@ -899,6 +964,7 @@ function renderLearningContent(content) {
   }
   flushParagraph();
   flushList();
+  flushOrderedList();
   flushTable();
 
   return elements.length ? elements : <p className="learning-preview-empty">正文预览</p>;
@@ -1052,6 +1118,7 @@ function App() {
   const [learningAutosaveLabel, setLearningAutosaveLabel] = useState("");
   const [learningTagInput, setLearningTagInput] = useState("");
   const [learningTagSuggestOpen, setLearningTagSuggestOpen] = useState(false);
+  const [learningActiveOutlineAnchor, setLearningActiveOutlineAnchor] = useState("");
   const [learningSidebarTagInput, setLearningSidebarTagInput] = useState("");
   const [learningCustomTags, setLearningCustomTags] = useState(() => {
     try {
@@ -1669,6 +1736,7 @@ function App() {
 
   function scrollLearningOutlineTo(anchor) {
     if (!anchor) return;
+    setLearningActiveOutlineAnchor(anchor);
     const containers = [learningReadPreviewRef.current, learningSplitPreviewRef.current].filter(Boolean);
     for (const container of containers) {
       const target = container.querySelector(`[data-outline-anchor="${anchor}"]`);
@@ -1680,6 +1748,27 @@ function App() {
     const fallback = document.getElementById(anchor);
     if (fallback) fallback.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  useEffect(() => {
+    setLearningActiveOutlineAnchor(learningOutline[0]?.anchor || "");
+  }, [learningOutline]);
+
+  useEffect(() => {
+    function handleGlobalShortcut(event) {
+      const targetTag = event.target?.tagName?.toLowerCase?.() || "";
+      const isEditingField = ["input", "textarea", "select"].includes(targetTag) || event.target?.isContentEditable;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        if (isEditingField) return;
+        event.preventDefault();
+        setGlobalFinderOpen(true);
+      }
+      if (event.key === "Escape" && globalFinderOpen) {
+        setGlobalFinderOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleGlobalShortcut);
+    return () => window.removeEventListener("keydown", handleGlobalShortcut);
+  }, [globalFinderOpen]);
 
   function exportAuditLogs() {
     if (!filteredAuditLogs.length) {
@@ -3260,13 +3349,25 @@ function App() {
                               className="learning-sql-snippet-main"
                               onClick={() => openLearningSnippetSource(snippet)}
                             >
-                              <strong>{snippet.title}</strong>
-                              <span>{snippet.itemTitle}</span>
+                              <div className="learning-sql-snippet-meta">
+                                <strong>{snippet.title}</strong>
+                                <span>{snippet.itemTitle}</span>
+                              </div>
                               <small>
                                 {snippet.category || "未分类"}
                                 {snippet.purpose ? ` · ${snippet.purpose}` : ""}
                                 {snippet.sourceTable ? ` · ${snippet.sourceTable}` : ""}
                               </small>
+                              <code className="learning-sql-snippet-preview">
+                                {((snippet.rawContent || snippet.content || "").split(/\r?\n/).find((line) => line.trim()) || "").slice(0, 120)}
+                              </code>
+                              {snippet.tags?.length ? (
+                                <div className="learning-sql-snippet-tags">
+                                  {snippet.tags.slice(0, 4).map((tag) => (
+                                    <span key={`${snippet.id}-${tag}`}>#{tag}</span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </button>
                             <div className="learning-sql-snippet-actions">
                               <button
@@ -3407,7 +3508,12 @@ function App() {
                   }}
                 >
                   <Archive size={16} />
-                  <span>{item.name}</span>
+                  <div className="project-row-copy">
+                    <span>{item.name}</span>
+                    <small>
+                      {[item.client_name || "未填客户", item.stage || "建模"].filter(Boolean).join(" · ")}
+                    </small>
+                  </div>
                   <em>{item.status || "制作中"}</em>
                   <small>{formatSize(item.total_size)}</small>
                 </button>
@@ -4243,7 +4349,7 @@ function App() {
                                   <button
                                     type="button"
                                     key={item.id}
-                                    className={`learning-outline-chip level-${item.level}`}
+                                    className={`learning-outline-chip level-${item.level} ${learningActiveOutlineAnchor === item.anchor ? "active" : ""}`}
                                     onClick={() => scrollLearningOutlineTo(item.anchor)}
                                   >
                                     {item.title}
@@ -4374,7 +4480,7 @@ function App() {
                                   <button
                                     type="button"
                                     key={item.id}
-                                    className={`learning-outline-chip level-${item.level}`}
+                                    className={`learning-outline-chip level-${item.level} ${learningActiveOutlineAnchor === item.anchor ? "active" : ""}`}
                                     onClick={() => scrollLearningOutlineTo(item.anchor)}
                                   >
                                     {item.title}
@@ -4772,7 +4878,7 @@ function App() {
             <div className="modal-head global-finder-head">
               <div>
                 <strong>全局搜索</strong>
-                <span>跨知识库、SQL 片段、3D 项目和系统管理快速跳转</span>
+                <span>跨知识库、SQL 片段、3D 项目和系统管理快速跳转，支持 Ctrl/Cmd + K</span>
               </div>
               <button onClick={() => setGlobalFinderOpen(false)}><X size={18} /></button>
             </div>

@@ -536,12 +536,25 @@ textarea:focus-visible {
   padding: 9px 10px;
 }
 
+.project-row-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  flex: 1 1 auto;
+}
+
 .project-row em {
   margin-left: auto;
   color: var(--accent-strong);
   font-size: 12px;
   font-style: normal;
   white-space: nowrap;
+  padding: 0 10px;
+  min-height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: #edf5f8;
 }
 
 .project-row span,
@@ -556,6 +569,13 @@ textarea:focus-visible {
   color: var(--muted);
   flex: 0 0 auto;
   margin-left: 0;
+}
+
+.project-row-copy small {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .archive-project-panel {
@@ -1203,10 +1223,11 @@ textarea:focus-visible {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: stretch;
-  padding: 8px;
+  padding: 10px;
   border: 1px solid #dce7ec;
-  border-radius: 10px;
-  background: #ffffff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #fbfdfe);
+  box-shadow: 0 10px 24px rgba(23, 32, 42, 0.04);
 }
 
 .learning-sql-snippet-actions {
@@ -1218,11 +1239,17 @@ textarea:focus-visible {
 .learning-sql-snippet-main {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 8px;
   justify-items: start;
   text-align: left;
   padding: 4px;
   background: transparent;
+}
+
+.learning-sql-snippet-meta {
+  width: 100%;
+  display: grid;
+  gap: 4px;
 }
 
 .learning-sql-snippet-main strong {
@@ -1240,6 +1267,42 @@ textarea:focus-visible {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.learning-sql-snippet-main small {
+  font-size: 12px;
+}
+
+.learning-sql-snippet-preview {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0f1d26;
+  color: #dbe7ed;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.learning-sql-snippet-tags {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learning-sql-snippet-tags span {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: #eef6f8;
+  color: #37606f;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .learning-sql-snippet-copy {
@@ -1875,10 +1938,11 @@ textarea:focus-visible {
 .learning-read-summary {
   display: grid;
   gap: 14px;
-  padding: 16px 18px;
-  border: 1px solid #e1e8ed;
-  border-radius: 12px;
-  background: #fbfdfe;
+  padding: 18px 20px;
+  border: 1px solid #dde8ed;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fcfdfe 0%, #f6fafc 100%);
+  box-shadow: 0 14px 30px rgba(23, 32, 42, 0.04);
 }
 
 .learning-read-meta {
@@ -1940,15 +2004,15 @@ textarea:focus-visible {
 }
 
 .learning-tag-display {
-  min-height: 42px;
+  min-height: 46px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid #d9e4ea;
-  border-radius: 8px;
-  background: #f8fbfc;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfdfe, #f6fafb);
 }
 
 .learning-tag-editor {
@@ -2026,6 +2090,12 @@ textarea:focus-visible {
 .learning-tag-dropdown button:hover {
   background: #e7f2f5;
   color: var(--accent-strong);
+}
+
+.learning-tag-dropdown button:disabled {
+  cursor: not-allowed;
+  background: #f5f8fa;
+  color: #90a0ad;
 }
 
 .learning-tag-dropdown button small {
@@ -2130,6 +2200,12 @@ textarea:focus-visible {
   color: var(--accent-strong);
 }
 
+.learning-outline-chip.active {
+  background: #d7eef1;
+  color: #0f6f7c;
+  box-shadow: inset 0 0 0 1px #8bc3cb;
+}
+
 .learning-outline-chip.level-2 {
   background: #f4f8fa;
   color: #4d6877;
@@ -2148,6 +2224,19 @@ textarea:focus-visible {
   border-radius: 10px;
   overflow: hidden;
   background: #12202a;
+}
+
+.learning-markdown-ordered-list {
+  margin: 0 0 16px;
+  padding-left: 22px;
+  color: #334b58;
+  line-height: 1.75;
+}
+
+.learning-markdown-divider {
+  border: 0;
+  border-top: 1px solid #dbe5ea;
+  margin: 8px 0 18px;
 }
 
 .learning-code-block.sql {
@@ -2260,10 +2349,11 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 18px 18px;
-  border: 1px solid #e1e8ed;
-  border-radius: 12px;
-  background: #ffffff;
+  padding: 18px 20px 20px;
+  border: 1px solid #dde8ed;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #fbfdfe);
+  box-shadow: 0 14px 28px rgba(23, 32, 42, 0.04);
 }
 
 .learning-reading-body {
@@ -2456,6 +2546,7 @@ textarea:focus-visible {
 
 .learning-content-preview p,
 .learning-content-preview ul,
+.learning-content-preview ol,
 .learning-content-preview blockquote,
 .learning-content-preview pre {
   margin: 0 0 16px;
@@ -2463,6 +2554,10 @@ textarea:focus-visible {
 
 .learning-content-preview ul {
   padding-left: 22px;
+}
+
+.learning-content-preview ol {
+  padding-left: 24px;
 }
 
 .learning-content-preview .todo-item {
@@ -2547,6 +2642,16 @@ textarea:focus-visible {
   padding: 0;
   background: transparent;
   color: inherit;
+}
+
+.learning-content-preview a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.learning-content-preview a:hover {
+  color: #0e6d79;
 }
 
 .learning-version-panel {
