@@ -578,6 +578,10 @@ textarea:focus-visible {
   text-overflow: ellipsis;
 }
 
+.project-row-notes {
+  color: #6f7f8d;
+}
+
 .archive-project-panel {
   margin: 0 12px 14px;
   padding: 10px;
@@ -1200,7 +1204,7 @@ textarea:focus-visible {
 
 .learning-sql-filter-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1284,6 +1288,31 @@ textarea:focus-visible {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.learning-sql-snippet-details {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.learning-sql-snippet-details span {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f6fafc;
+  color: #546472;
+  font-size: 12px;
+  line-height: 1.5;
+  display: grid;
+  gap: 2px;
+}
+
+.learning-sql-snippet-details strong {
+  color: #2b5e6f;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .learning-sql-snippet-tags {
@@ -2783,9 +2812,32 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.learning-template-picker-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+}
+
+.learning-template-picker-filters select {
+  min-height: 40px;
+  border: 1px solid #dce7ed;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: var(--text);
+}
+
 .learning-template-list {
   display: grid;
   gap: 8px;
+}
+
+.learning-template-empty {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f5f9fb;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .learning-template-section {
@@ -3122,7 +3174,7 @@ textarea:focus-visible {
 
 .admin-filter-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(0, 1fr) 180px 180px;
   gap: 10px;
   margin-bottom: 14px;
 }

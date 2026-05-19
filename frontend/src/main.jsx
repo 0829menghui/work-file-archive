@@ -1194,6 +1194,7 @@ function App() {
   const [learningSqlLibraryQuery, setLearningSqlLibraryQuery] = useState("");
   const [learningSqlLibraryCategory, setLearningSqlLibraryCategory] = useState("all");
   const [learningSqlLibraryTag, setLearningSqlLibraryTag] = useState("all");
+  const [learningSqlLibraryOwner, setLearningSqlLibraryOwner] = useState("all");
   const [archiveSearchTick, setArchiveSearchTick] = useState(0);
   const [archiveProjectStageFilter, setArchiveProjectStageFilter] = useState("all");
   const [archiveProjectQuery, setArchiveProjectQuery] = useState("");
@@ -1204,9 +1205,12 @@ function App() {
     status: "all",
     logQuery: "",
     logTargetType: "all",
+    logAction: "all",
   });
   const [learningTemplatePickerOpen, setLearningTemplatePickerOpen] = useState(false);
   const [selectedLearningTemplatePreview, setSelectedLearningTemplatePreview] = useState(null);
+  const [learningTemplateQuery, setLearningTemplateQuery] = useState("");
+  const [learningTemplateCategory, setLearningTemplateCategory] = useState("all");
   const [newUser, setNewUser] = useState({
     username: "",
     display_name: "",
@@ -1401,12 +1405,17 @@ function App() {
     () => Array.from(new Set(learningSqlSnippets.flatMap((snippet) => snippet.tags || []).filter(Boolean))),
     [learningSqlSnippets]
   );
+  const learningSqlLibraryOwners = useMemo(
+    () => Array.from(new Set(learningSqlSnippets.map((snippet) => snippet.owner).filter(Boolean))),
+    [learningSqlSnippets]
+  );
   const filteredLearningSqlSnippets = useMemo(() => {
     const keyword = learningSqlLibraryQuery.trim().toLowerCase();
     return learningSqlSnippets.filter((snippet) => {
       const categoryMatched = learningSqlLibraryCategory === "all" || snippet.category === learningSqlLibraryCategory;
       const tagMatched = learningSqlLibraryTag === "all" || (snippet.tags || []).includes(learningSqlLibraryTag);
-      if (!categoryMatched || !tagMatched) return false;
+      const ownerMatched = learningSqlLibraryOwner === "all" || snippet.owner === learningSqlLibraryOwner;
+      if (!categoryMatched || !tagMatched || !ownerMatched) return false;
       if (!keyword) return true;
       return [
         snippet.title,
@@ -1424,7 +1433,38 @@ function App() {
         .toLowerCase()
         .includes(keyword);
     });
-  }, [learningSqlSnippets, learningSqlLibraryQuery, learningSqlLibraryCategory, learningSqlLibraryTag]);
+  }, [learningSqlSnippets, learningSqlLibraryQuery, learningSqlLibraryCategory, learningSqlLibraryTag, learningSqlLibraryOwner]);
+  const learningTemplateCategories = useMemo(
+    () => Array.from(new Set([...LEARNING_TEMPLATES, ...learningCustomTemplates].map((item) => item.category).filter(Boolean))),
+    [learningCustomTemplates]
+  );
+  const filteredLearningTemplates = useMemo(() => {
+    const keyword = learningTemplateQuery.trim().toLowerCase();
+    return [...LEARNING_TEMPLATES, ...learningCustomTemplates].filter((template) => {
+      const categoryMatched = learningTemplateCategory === "all" || template.category === learningTemplateCategory;
+      if (!categoryMatched) return false;
+      if (!keyword) return true;
+      return [
+        template.name,
+        template.category,
+        template.tags || "",
+        template.status || "",
+        template.priority || "",
+        template.content || "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }, [learningCustomTemplates, learningTemplateQuery, learningTemplateCategory]);
+  const filteredLearningTemplatesBuiltIn = useMemo(
+    () => filteredLearningTemplates.filter((template) => LEARNING_TEMPLATES.some((item) => item.key === template.key)),
+    [filteredLearningTemplates]
+  );
+  const filteredLearningTemplatesCustom = useMemo(
+    () => filteredLearningTemplates.filter((template) => !LEARNING_TEMPLATES.some((item) => item.key === template.key)),
+    [filteredLearningTemplates]
+  );
   const archiveVisibleProjects = useMemo(() => {
     const keyword = archiveProjectQuery.trim().toLowerCase();
     return projects.filter((item) => {
@@ -1436,6 +1476,8 @@ function App() {
         item.client_name,
         item.contact_name,
         item.description,
+        item.delivery_notes,
+        item.delivery_date,
         item.stage,
         item.status,
       ]
@@ -1465,7 +1507,8 @@ function App() {
     const keyword = adminFilters.logQuery.trim().toLowerCase();
     return adminData.logs.filter((item) => {
       const typeMatched = adminFilters.logTargetType === "all" || item.target_type === adminFilters.logTargetType;
-      if (!typeMatched) return false;
+      const actionMatched = adminFilters.logAction === "all" || item.action === adminFilters.logAction;
+      if (!typeMatched || !actionMatched) return false;
       if (!keyword) return true;
       return [
         item.action,
@@ -1478,7 +1521,11 @@ function App() {
         .toLowerCase()
         .includes(keyword);
     });
-  }, [adminData.logs, adminFilters.logQuery, adminFilters.logTargetType]);
+  }, [adminData.logs, adminFilters.logQuery, adminFilters.logTargetType, adminFilters.logAction]);
+  const adminAuditActions = useMemo(
+    () => Array.from(new Set(adminData.logs.map((item) => item.action).filter(Boolean))),
+    [adminData.logs]
+  );
 
   useEffect(() => {
     if (auth) {
@@ -1537,16 +1584,15 @@ function App() {
 
   useEffect(() => {
     if (!learningTemplatePickerOpen) return;
-    const allTemplates = [...LEARNING_TEMPLATES, ...learningCustomTemplates];
-    if (!allTemplates.length) {
+    if (!filteredLearningTemplates.length) {
       setSelectedLearningTemplatePreview(null);
       return;
     }
     setSelectedLearningTemplatePreview((current) => {
-      if (current && allTemplates.some((item) => item.key === current.key)) return current;
-      return allTemplates[0];
+      if (current && filteredLearningTemplates.some((item) => item.key === current.key)) return current;
+      return filteredLearningTemplates[0];
     });
-  }, [learningTemplatePickerOpen, learningCustomTemplates]);
+  }, [learningTemplatePickerOpen, filteredLearningTemplates]);
 
   useEffect(() => {
     localStorage.setItem("work-file-archive-learning-tree-width", String(learningTreeWidth));
@@ -2840,6 +2886,9 @@ function App() {
         content: [
           snippet.purpose ? `- 用途：${snippet.purpose}` : "",
           snippet.sourceTable ? `- 来源表：${snippet.sourceTable}` : "",
+          snippet.targetTable ? `- 目标表：${snippet.targetTable}` : "",
+          snippet.owner ? `- 负责人：${snippet.owner}` : "",
+          snippet.notes ? `- 备注：${snippet.notes}` : "",
           "",
           "```sql",
           snippet.rawContent || snippet.content || "",
@@ -3188,6 +3237,25 @@ function App() {
                     收起
                   </button>
                 </div>
+                <div className="learning-template-picker-filters">
+                  <div className="searchbox learning-template-search">
+                    <Search size={16} />
+                    <input
+                      value={learningTemplateQuery}
+                      placeholder="搜索模板名称、分类、标签、正文"
+                      onChange={(event) => setLearningTemplateQuery(event.target.value)}
+                    />
+                  </div>
+                  <select
+                    value={learningTemplateCategory}
+                    onChange={(event) => setLearningTemplateCategory(event.target.value)}
+                  >
+                    <option value="all">全部分类</option>
+                    {learningTemplateCategories.map((item) => (
+                      <option key={`template-category-${item}`} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="learning-template-picker-layout">
                   <div className="learning-template-picker-side">
                     <div className="learning-template-section">
@@ -3195,7 +3263,7 @@ function App() {
                         <span>内置模板</span>
                       </div>
                       <div className="learning-template-list">
-                        {LEARNING_TEMPLATES.map((template) => (
+                        {filteredLearningTemplatesBuiltIn.map((template) => (
                           <button
                             key={template.key}
                             type="button"
@@ -3206,6 +3274,9 @@ function App() {
                             <small>{template.category} · {template.priority}优先级</small>
                           </button>
                         ))}
+                        {!filteredLearningTemplatesBuiltIn.length ? (
+                          <div className="learning-template-empty">当前筛选下没有内置模板</div>
+                        ) : null}
                       </div>
                     </div>
                     {learningCustomTemplates.length ? (
@@ -3214,7 +3285,7 @@ function App() {
                           <span>自定义模板</span>
                         </div>
                         <div className="learning-template-list">
-                          {learningCustomTemplates.map((template) => (
+                          {filteredLearningTemplatesCustom.map((template) => (
                             <div key={template.key} className="learning-template-custom-row">
                               <button
                                 type="button"
@@ -3233,6 +3304,9 @@ function App() {
                               </button>
                             </div>
                           ))}
+                          {!filteredLearningTemplatesCustom.length ? (
+                            <div className="learning-template-empty">当前筛选下没有自定义模板</div>
+                          ) : null}
                         </div>
                       </div>
                     ) : null}
@@ -3496,6 +3570,15 @@ function App() {
                               <option key={`snippet-tag-${item}`} value={item}>{item}</option>
                             ))}
                           </select>
+                          <select
+                            value={learningSqlLibraryOwner}
+                            onChange={(event) => setLearningSqlLibraryOwner(event.target.value)}
+                          >
+                            <option value="all">全部负责人</option>
+                            {learningSqlLibraryOwners.map((item) => (
+                              <option key={`snippet-owner-${item}`} value={item}>{item}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                       <div className="learning-sql-library-list">
@@ -3518,6 +3601,15 @@ function App() {
                               <code className="learning-sql-snippet-preview">
                                 {((snippet.rawContent || snippet.content || "").split(/\r?\n/).find((line) => line.trim()) || "").slice(0, 120)}
                               </code>
+                              {(snippet.purpose || snippet.sourceTable || snippet.targetTable || snippet.owner || snippet.notes) ? (
+                                <div className="learning-sql-snippet-details">
+                                  {snippet.purpose ? <span><strong>用途</strong>{snippet.purpose}</span> : null}
+                                  {snippet.sourceTable ? <span><strong>来源表</strong>{snippet.sourceTable}</span> : null}
+                                  {snippet.targetTable ? <span><strong>目标表</strong>{snippet.targetTable}</span> : null}
+                                  {snippet.owner ? <span><strong>负责人</strong>{snippet.owner}</span> : null}
+                                  {snippet.notes ? <span><strong>备注</strong>{snippet.notes}</span> : null}
+                                </div>
+                              ) : null}
                               {snippet.tags?.length ? (
                                 <div className="learning-sql-snippet-tags">
                                   {snippet.tags.slice(0, 4).map((tag) => (
@@ -3668,8 +3760,16 @@ function App() {
                   <div className="project-row-copy">
                     <span>{item.name}</span>
                     <small>
-                      {[item.client_name || "未填客户", item.stage || "建模"].filter(Boolean).join(" · ")}
+                      {[
+                        item.client_name || "未填客户",
+                        item.contact_name || "",
+                        item.stage || "建模",
+                        item.delivery_date ? `交付 ${item.delivery_date}` : "",
+                      ].filter(Boolean).join(" · ")}
                     </small>
+                    {item.delivery_notes ? (
+                      <small className="project-row-notes">{item.delivery_notes}</small>
+                    ) : null}
                   </div>
                   <em>{item.status || "制作中"}</em>
                   <small>{formatSize(item.total_size)}</small>
@@ -5053,6 +5153,15 @@ function App() {
                   <option value="folder">目录</option>
                   <option value="learning_item">知识库</option>
                   <option value="file">文件</option>
+                </select>
+                <select
+                  value={adminFilters.logAction}
+                  onChange={(event) => setAdminFilters((current) => ({ ...current, logAction: event.target.value }))}
+                >
+                  <option value="all">全部动作</option>
+                  {adminAuditActions.map((item) => (
+                    <option key={`audit-action-${item}`} value={item}>{item}</option>
+                  ))}
                 </select>
               </div>
               <div className="admin-audit-list">
