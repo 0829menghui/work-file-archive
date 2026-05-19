@@ -1390,6 +1390,53 @@ function App() {
     () => extractLearningOutline(learningDraft.content || ""),
     [learningDraft.content]
   );
+  const learningDocInsights = useMemo(() => {
+    const content = learningDraft.content || "";
+    const headings = extractLearningOutline(content).length;
+    const tags = parseLearningTags(learningDraft.tags || "");
+    const sqlBlocks = extractSqlSnippetsFromItem({
+      id: selectedLearningItem?.id || "draft",
+      title: learningDraft.title || "未命名文档",
+      item_type: "doc",
+      content,
+      category: learningDraft.category || "",
+      tags: learningDraft.tags || "",
+      updated_at: selectedLearningItem?.updated_at || "",
+    }).length;
+    return [
+      { label: "标题层级", value: headings },
+      { label: "标签数量", value: tags.length },
+      { label: "SQL 片段", value: sqlBlocks },
+      { label: "正文长度", value: content.trim() ? `${content.trim().length} 字` : "空白" },
+    ];
+  }, [learningDraft.content, learningDraft.tags, learningDraft.title, learningDraft.category, selectedLearningItem?.id, selectedLearningItem?.updated_at]);
+  const learningRelatedDocs = useMemo(() => {
+    if (!selectedLearningItem?.id) return [];
+    const currentTags = parseLearningTags(learningDraft.tags || "");
+    return learningItems
+      .filter((item) => item.item_type === "doc" && item.id !== selectedLearningItem.id)
+      .map((item) => {
+        const itemTags = parseLearningTags(item.tags || "");
+        const sharedTags = itemTags.filter((tag) => currentTags.includes(tag));
+        let score = 0;
+        if ((item.category || "") === (learningDraft.category || "")) score += 3;
+        score += sharedTags.length * 2;
+        if ((item.title || "").includes(learningDraft.title || "") || (learningDraft.title || "").includes(item.title || "")) {
+          score += 1;
+        }
+        return {
+          ...item,
+          sharedTags,
+          score,
+        };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (b.updated_at || "").localeCompare(a.updated_at || "");
+      })
+      .slice(0, 6);
+  }, [learningItems, selectedLearningItem?.id, learningDraft.category, learningDraft.tags, learningDraft.title]);
   const learningSqlSnippets = useMemo(
     () =>
       learningItems
@@ -1465,6 +1512,35 @@ function App() {
     () => filteredLearningTemplates.filter((template) => !LEARNING_TEMPLATES.some((item) => item.key === template.key)),
     [filteredLearningTemplates]
   );
+  const archiveProjectStageOptions = useMemo(() => {
+    const stageOrder = ["需求", "建模", "贴图", "灯光", "渲染", "交付"];
+    const counts = projects.reduce((acc, item) => {
+      const key = item.stage || "建模";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    return stageOrder
+      .filter((stage) => counts[stage])
+      .map((stage) => ({ stage, count: counts[stage] }));
+  }, [projects]);
+  const adminOverview = useMemo(() => {
+    const activeUsers = adminData.users.filter((item) => item.is_active).length;
+    const adminUsers = adminData.users.filter((item) => item.role === "admin").length;
+    const enabledModules = adminData.modules.filter((item) => item.is_enabled).length;
+    const hiddenModules = adminData.modules.filter((item) => item.is_hidden).length;
+    const recentLogs = adminData.logs.filter((item) => {
+      if (!item.created_at) return false;
+      const created = new Date(item.created_at).getTime();
+      return Number.isFinite(created) && created >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+    }).length;
+    return [
+      { label: "启用账号", value: activeUsers },
+      { label: "管理员", value: adminUsers },
+      { label: "已启用模块", value: enabledModules },
+      { label: "隐藏模块", value: hiddenModules },
+      { label: "7天操作日志", value: recentLogs },
+    ];
+  }, [adminData]);
   const archiveVisibleProjects = useMemo(() => {
     const keyword = archiveProjectQuery.trim().toLowerCase();
     return projects.filter((item) => {
@@ -3746,6 +3822,29 @@ function App() {
                   <option value="交付">交付</option>
                 </select>
               </div>
+              {archiveProjectStageOptions.length ? (
+                <div className="archive-stage-pills">
+                  <button
+                    type="button"
+                    className={archiveProjectStageFilter === "all" ? "active" : ""}
+                    onClick={() => setArchiveProjectStageFilter("all")}
+                  >
+                    全部阶段
+                    <span>{projects.length}</span>
+                  </button>
+                  {archiveProjectStageOptions.map((item) => (
+                    <button
+                      type="button"
+                      key={`project-stage-pill-${item.stage}`}
+                      className={archiveProjectStageFilter === item.stage ? "active" : ""}
+                      onClick={() => setArchiveProjectStageFilter(item.stage)}
+                    >
+                      {item.stage}
+                      <span>{item.count}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {archiveVisibleProjects.map((item) => (
                 <button
                   key={item.id}
@@ -4610,6 +4709,46 @@ function App() {
                           </div>
                         </label>
 
+                        <div className="learning-context-grid">
+                          <section className="learning-context-card">
+                            <div className="learning-context-head">
+                              <strong>文档概览</strong>
+                              <span>快速掌握当前文档结构和沉淀密度</span>
+                            </div>
+                            <div className="learning-insight-metrics">
+                              {learningDocInsights.map((item) => (
+                                <div key={`learning-insight-${item.label}`} className="learning-insight-pill">
+                                  <strong>{item.value}</strong>
+                                  <span>{item.label}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                          {learningRelatedDocs.length ? (
+                            <section className="learning-context-card">
+                              <div className="learning-context-head">
+                                <strong>关联文档</strong>
+                                <span>按分类和标签自动推荐，方便横向联想</span>
+                              </div>
+                              <div className="learning-related-list">
+                                {learningRelatedDocs.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={`related-doc-${item.id}`}
+                                    className="learning-related-item"
+                                    onClick={() => selectLearningItem(item)}
+                                  >
+                                    <strong>{item.title}</strong>
+                                    <span>
+                                      {[item.category || "未分类", ...(item.sharedTags || []).slice(0, 2).map((tag) => `#${tag}`)].join(" · ")}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ) : null}
+                        </div>
+
                         <div className="learning-edit-body">
                           <div className="learning-editor-label">
                             <strong>正文</strong>
@@ -4741,6 +4880,46 @@ function App() {
                           </div>
                         </div>
 
+                        <div className="learning-context-grid">
+                          <section className="learning-context-card">
+                            <div className="learning-context-head">
+                              <strong>文档概览</strong>
+                              <span>快速了解正文规模、标签和 SQL 沉淀情况</span>
+                            </div>
+                            <div className="learning-insight-metrics">
+                              {learningDocInsights.map((item) => (
+                                <div key={`learning-read-insight-${item.label}`} className="learning-insight-pill">
+                                  <strong>{item.value}</strong>
+                                  <span>{item.label}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                          {learningRelatedDocs.length ? (
+                            <section className="learning-context-card">
+                              <div className="learning-context-head">
+                                <strong>关联文档</strong>
+                                <span>同主题内容会自动靠拢，后面翻资料更快</span>
+                              </div>
+                              <div className="learning-related-list">
+                                {learningRelatedDocs.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={`learning-read-related-${item.id}`}
+                                    className="learning-related-item"
+                                    onClick={() => selectLearningItem(item)}
+                                  >
+                                    <strong>{item.title}</strong>
+                                    <span>
+                                      {[item.category || "未分类", ...(item.sharedTags || []).slice(0, 2).map((tag) => `#${tag}`)].join(" · ")}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ) : null}
+                        </div>
+
                         <div className="learning-reading-body">
                           <div className="learning-editor-label">
                             <strong>正文</strong>
@@ -4862,6 +5041,14 @@ function App() {
                 <span>admin 可以管理模块展示信息、账号和用户授权</span>
               </div>
             </div>
+            <section className="admin-overview-grid">
+              {adminOverview.map((item) => (
+                <article className="admin-overview-card" key={`admin-overview-${item.label}`}>
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </article>
+              ))}
+            </section>
             <section className="admin-module-manager">
               <div className="admin-section-title">
                 <strong>模块管理</strong>
