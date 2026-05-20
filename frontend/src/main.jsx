@@ -2066,6 +2066,144 @@ function App() {
     recentArchiveProjects,
     adminData.logs,
   ]);
+  const workspaceQualityCards = useMemo(() => {
+    const projectReadyCount = projects.filter(
+      (item) => item.client_name && item.stage && item.status && item.delivery_date
+    ).length;
+    const taggedLearningCount = learningItems.filter(
+      (item) => item.item_type !== "folder" && parseLearningTags(item.tags || "").length
+    ).length;
+    const structuredSnippetCount = learningSqlSnippets.filter(
+      (snippet) => snippet.purpose || snippet.sourceTable || snippet.targetTable || snippet.owner
+    ).length;
+    const adminRiskCount = adminActionAlerts.filter((item) => Number(item.value) > 0).length;
+    return [
+      {
+        label: "项目资料完整度",
+        value: canViewArchiveModule && projects.length ? `${Math.round((projectReadyCount / projects.length) * 100)}%` : "--",
+        hint: canViewArchiveModule ? `${projectReadyCount}/${projects.length} 个项目已补齐关键资料` : "需要 3D 模块权限",
+      },
+      {
+        label: "知识标签覆盖",
+        value: canViewLearningModule && learningStats.total ? `${Math.round((taggedLearningCount / learningStats.total) * 100)}%` : "--",
+        hint: canViewLearningModule ? `${taggedLearningCount}/${learningStats.total} 篇文档已有标签` : "需要知识库权限",
+      },
+      {
+        label: "SQL 结构化",
+        value: canViewLearningModule && learningSqlSnippets.length ? `${Math.round((structuredSnippetCount / learningSqlSnippets.length) * 100)}%` : "--",
+        hint: canViewLearningModule ? `${structuredSnippetCount}/${learningSqlSnippets.length} 条片段有用途、表或负责人` : "需要知识库权限",
+      },
+      {
+        label: "后台风险",
+        value: canViewAdminModule ? adminRiskCount : "--",
+        hint: canViewAdminModule ? (adminRiskCount ? "建议先看看系统提醒" : "当前没有明显风险提醒") : "仅管理员可见",
+      },
+    ];
+  }, [
+    canViewArchiveModule,
+    canViewLearningModule,
+    canViewAdminModule,
+    projects,
+    learningItems,
+    learningSqlSnippets,
+    learningStats.total,
+    adminActionAlerts,
+  ]);
+  const workspacePriorityQueue = useMemo(() => {
+    const actions = [];
+    if (canViewLearningModule) {
+      learningItems
+        .filter((item) => item.item_type !== "folder" && (item.status === "进行中" || item.priority === "高"))
+        .slice(0, 3)
+        .forEach((item) => {
+          actions.push({
+            id: `priority-learning-${item.id}`,
+            type: "知识",
+            title: item.title,
+            meta: [item.category || "未分类", item.status || "计划中", item.priority ? `${item.priority}优先级` : ""].filter(Boolean).join(" · "),
+            actionLabel: "打开文档",
+            onClick: () => {
+              setActiveModule("learning");
+              selectLearningItem(item);
+            },
+          });
+        });
+      learningSqlSnippets
+        .filter((snippet) => !(snippet.purpose || snippet.sourceTable || snippet.targetTable || snippet.owner))
+        .slice(0, 2)
+        .forEach((snippet) => {
+          actions.push({
+            id: `priority-snippet-${snippet.id}`,
+            type: "SQL",
+            title: snippet.title,
+            meta: "这条片段还缺用途、来源表或负责人",
+            actionLabel: "补资料",
+            onClick: () => {
+              setSelectedLearningSnippet(snippet);
+              setLearningSnippetEditing(true);
+              setLearningSnippetDraft({
+                title: snippet.title || "",
+                category: snippet.category || "",
+                purpose: snippet.purpose || "",
+                sourceTable: snippet.sourceTable || "",
+                targetTable: snippet.targetTable || "",
+                owner: snippet.owner || "",
+                notes: snippet.notes || "",
+                tags: (snippet.tags || []).join(", "),
+              });
+              setActiveModule("learning");
+            },
+          });
+        });
+    }
+    if (canViewArchiveModule) {
+      projects
+        .filter((item) => !item.delivery_date || !item.client_name || item.status === "待确认")
+        .slice(0, 3)
+        .forEach((item) => {
+          actions.push({
+            id: `priority-project-${item.id}`,
+            type: "3D",
+            title: item.name,
+            meta: [
+              item.client_name ? `客户 ${item.client_name}` : "未填客户",
+              item.delivery_date ? `交付 ${item.delivery_date}` : "未设交付日期",
+              item.status || "制作中",
+            ].join(" · "),
+            actionLabel: "补项目资料",
+            onClick: () => {
+              setActiveModule("archive_3d");
+              setProject(item);
+              setArchiveProjectPanelOpen(true);
+            },
+          });
+        });
+    }
+    if (canViewAdminModule) {
+      adminActionAlerts
+        .filter((item) => Number(item.value) > 0)
+        .slice(0, 2)
+        .forEach((item) => {
+          actions.push({
+            id: `priority-admin-${item.label}`,
+            type: "后台",
+            title: item.label,
+            meta: item.hint,
+            actionLabel: "查看后台",
+            onClick: () => setActiveModule("admin"),
+          });
+        });
+    }
+    return actions.slice(0, 8);
+  }, [
+    canViewLearningModule,
+    canViewArchiveModule,
+    canViewAdminModule,
+    learningItems,
+    learningSqlSnippets,
+    projects,
+    adminActionAlerts,
+  ]);
   const filteredAdminUsers = useMemo(() => {
     const keyword = adminFilters.userQuery.trim().toLowerCase();
     return adminData.users.filter((item) => {
@@ -4957,7 +5095,7 @@ function App() {
                 <p>我们把归档、知识和后台信息放到同一个工作台里，这样你每次打开系统都能先知道哪里有进展、哪里还需要补。</p>
               </div>
               <div className="workspace-home-hero-actions">
-                {canViewLearningModule ? (
+                {canEditLearningModule ? (
                   <button
                     type="button"
                     className="primary-button"
@@ -5056,6 +5194,47 @@ function App() {
                   )) : (
                     <div className="workspace-home-empty">先进入任意模块处理一点内容，这里就会开始有动态了。</div>
                   )}
+                </div>
+              </article>
+            </section>
+
+            <section className="workspace-home-grid workspace-home-grid-balanced">
+              <article className="workspace-home-panel">
+                <div className="workspace-home-panel-head">
+                  <div>
+                    <strong>今天建议处理</strong>
+                    <span>系统会把进行中的文档、待补资料的项目和后台提醒先推到前面。</span>
+                  </div>
+                </div>
+                <div className="workspace-home-priority-list">
+                  {workspacePriorityQueue.length ? workspacePriorityQueue.map((item) => (
+                    <button key={item.id} type="button" className="workspace-home-priority-item" onClick={item.onClick}>
+                      <span>{item.type}</span>
+                      <strong>{item.title}</strong>
+                      <small>{item.meta}</small>
+                      <em>{item.actionLabel}</em>
+                    </button>
+                  )) : (
+                    <div className="workspace-home-empty">暂时没有需要优先处理的内容，今天可以从最近动态里继续。</div>
+                  )}
+                </div>
+              </article>
+
+              <article className="workspace-home-panel">
+                <div className="workspace-home-panel-head">
+                  <div>
+                    <strong>平台健康度</strong>
+                    <span>用几项关键指标看资料是否越用越完整。</span>
+                  </div>
+                </div>
+                <div className="workspace-home-quality-grid">
+                  {workspaceQualityCards.map((item) => (
+                    <div className="workspace-home-quality-card" key={`workspace-quality-${item.label}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.hint}</small>
+                    </div>
+                  ))}
                 </div>
               </article>
             </section>
