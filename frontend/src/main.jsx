@@ -36,6 +36,7 @@ const LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY = "work-file-archive-learning-dock-t
 const LEARNING_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-learning-recent-searches";
 const ARCHIVE_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-archive-recent-searches";
 const LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY = "work-file-archive-learning-custom-templates";
+const LEARNING_SNIPPET_META_STORAGE_KEY = "work-file-archive-learning-snippet-meta";
 const GLOBAL_FINDER_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-global-recent-searches";
 
 const LEARNING_TEMPLATES = [
@@ -772,6 +773,27 @@ function extractSqlSnippetsFromItem(item) {
   return snippets;
 }
 
+function getLearningSnippetStorageKey(snippet) {
+  return snippet?.id || "";
+}
+
+function mergeLearningSnippetMeta(snippet, overrides = {}) {
+  if (!snippet) return snippet;
+  const custom = overrides[getLearningSnippetStorageKey(snippet)];
+  if (!custom) return snippet;
+  return {
+    ...snippet,
+    title: custom.title || snippet.title,
+    category: custom.category || snippet.category,
+    tags: Array.isArray(custom.tags) ? custom.tags.filter(Boolean) : snippet.tags,
+    purpose: custom.purpose ?? snippet.purpose,
+    sourceTable: custom.sourceTable ?? snippet.sourceTable,
+    targetTable: custom.targetTable ?? snippet.targetTable,
+    owner: custom.owner ?? snippet.owner,
+    notes: custom.notes ?? snippet.notes,
+  };
+}
+
 function extractLearningOutline(content = "") {
   return (content || "")
     .split(/\r?\n/)
@@ -1204,6 +1226,15 @@ function App() {
       return [];
     }
   });
+  const [learningSnippetMetaOverrides, setLearningSnippetMetaOverrides] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LEARNING_SNIPPET_META_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
   const [learningTreeWidth, setLearningTreeWidth] = useState(() => {
     const raw = localStorage.getItem("work-file-archive-learning-tree-width");
     const value = raw ? Number(raw) : 360;
@@ -1227,6 +1258,17 @@ function App() {
   const [learningSqlLibraryTag, setLearningSqlLibraryTag] = useState("all");
   const [learningSqlLibraryOwner, setLearningSqlLibraryOwner] = useState("all");
   const [selectedLearningSnippet, setSelectedLearningSnippet] = useState(null);
+  const [learningSnippetEditing, setLearningSnippetEditing] = useState(false);
+  const [learningSnippetDraft, setLearningSnippetDraft] = useState({
+    title: "",
+    category: "",
+    purpose: "",
+    sourceTable: "",
+    targetTable: "",
+    owner: "",
+    notes: "",
+    tags: "",
+  });
   const [archiveSearchTick, setArchiveSearchTick] = useState(0);
   const [archiveProjectStageFilter, setArchiveProjectStageFilter] = useState("all");
   const [archiveProjectQuery, setArchiveProjectQuery] = useState("");
@@ -1494,9 +1536,17 @@ function App() {
     () =>
       learningItems
         .flatMap((item) => extractSqlSnippetsFromItem(item))
+        .map((snippet) => mergeLearningSnippetMeta(snippet, learningSnippetMetaOverrides))
         .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")),
-    [learningItems]
+    [learningItems, learningSnippetMetaOverrides]
   );
+  const resolvedSelectedLearningSnippet = useMemo(() => {
+    if (!selectedLearningSnippet) return null;
+    return (
+      learningSqlSnippets.find((snippet) => snippet.id === selectedLearningSnippet.id) ||
+      mergeLearningSnippetMeta(selectedLearningSnippet, learningSnippetMetaOverrides)
+    );
+  }, [selectedLearningSnippet, learningSqlSnippets, learningSnippetMetaOverrides]);
   const learningSqlLibraryCategories = useMemo(
     () => Array.from(new Set(learningSqlSnippets.map((snippet) => snippet.category).filter(Boolean))),
     [learningSqlSnippets]
@@ -1680,6 +1730,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY, JSON.stringify(learningCustomTemplates));
   }, [learningCustomTemplates]);
+
+  useEffect(() => {
+    localStorage.setItem(LEARNING_SNIPPET_META_STORAGE_KEY, JSON.stringify(learningSnippetMetaOverrides));
+  }, [learningSnippetMetaOverrides]);
 
   useEffect(() => {
     localStorage.setItem(LEARNING_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(learningRecentSearches));
@@ -3010,7 +3064,46 @@ function App() {
   }
 
   function openLearningSnippetDetail(snippet) {
+    const tags = Array.isArray(snippet.tags) ? snippet.tags.join(", ") : "";
+    setLearningSnippetDraft({
+      title: snippet.title || "",
+      category: snippet.category || "",
+      purpose: snippet.purpose || "",
+      sourceTable: snippet.sourceTable || "",
+      targetTable: snippet.targetTable || "",
+      owner: snippet.owner || "",
+      notes: snippet.notes || "",
+      tags,
+    });
+    setLearningSnippetEditing(false);
     setSelectedLearningSnippet(snippet);
+  }
+
+  function closeLearningSnippetDetail() {
+    setSelectedLearningSnippet(null);
+    setLearningSnippetEditing(false);
+  }
+
+  function saveLearningSnippetMeta() {
+    if (!resolvedSelectedLearningSnippet) return;
+    const key = getLearningSnippetStorageKey(resolvedSelectedLearningSnippet);
+    if (!key) return;
+    const nextMeta = {
+      title: learningSnippetDraft.title.trim(),
+      category: learningSnippetDraft.category.trim(),
+      purpose: learningSnippetDraft.purpose.trim(),
+      sourceTable: learningSnippetDraft.sourceTable.trim(),
+      targetTable: learningSnippetDraft.targetTable.trim(),
+      owner: learningSnippetDraft.owner.trim(),
+      notes: learningSnippetDraft.notes.trim(),
+      tags: parseLearningTags(learningSnippetDraft.tags),
+    };
+    setLearningSnippetMetaOverrides((current) => ({
+      ...current,
+      [key]: nextMeta,
+    }));
+    setLearningSnippetEditing(false);
+    setMessage(`已更新片段资料：${nextMeta.title || resolvedSelectedLearningSnippet.title}`);
   }
 
   function openLearningSnippetSource(snippet) {
@@ -5674,53 +5767,133 @@ function App() {
         </div>
       ) : null}
 
-      {selectedLearningSnippet ? (
-        <div className="modal-backdrop" onClick={() => setSelectedLearningSnippet(null)}>
+      {resolvedSelectedLearningSnippet ? (
+        <div className="modal-backdrop" onClick={closeLearningSnippetDetail}>
           <section
             className="modal learning-snippet-modal"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
-                <strong>{selectedLearningSnippet.title}</strong>
-                <span>{selectedLearningSnippet.itemTitle || "SQL 片段详情"}</span>
+                <strong>{resolvedSelectedLearningSnippet.title}</strong>
+                <span>{resolvedSelectedLearningSnippet.itemTitle || "SQL 片段详情"}</span>
               </div>
-              <button onClick={() => setSelectedLearningSnippet(null)}><X size={18} /></button>
+              <button onClick={closeLearningSnippetDetail}><X size={18} /></button>
             </div>
             <div className="learning-snippet-modal-body">
-              <div className="learning-snippet-modal-meta">
-                <span><strong>分类</strong>{selectedLearningSnippet.category || "未分类"}</span>
-                <span><strong>负责人</strong>{selectedLearningSnippet.owner || "未填写"}</span>
-                <span><strong>来源表</strong>{selectedLearningSnippet.sourceTable || "未填写"}</span>
-                <span><strong>目标表</strong>{selectedLearningSnippet.targetTable || "未填写"}</span>
+              <div className="learning-snippet-modal-toolbar">
+                <button type="button" onClick={() => setLearningSnippetEditing((current) => !current)}>
+                  {learningSnippetEditing ? "完成查看" : "编辑资料"}
+                </button>
+                {learningSnippetEditing ? (
+                  <button type="button" className="primary-button" onClick={saveLearningSnippetMeta}>
+                    保存片段资料
+                  </button>
+                ) : null}
               </div>
-              {selectedLearningSnippet.purpose ? (
-                <div className="learning-snippet-modal-notes">
-                  <strong>用途</strong>
-                  <p>{selectedLearningSnippet.purpose}</p>
+              {learningSnippetEditing ? (
+                <div className="learning-snippet-form">
+                  <label>
+                    <span>片段标题</span>
+                    <input
+                      value={learningSnippetDraft.title}
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, title: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    <span>分类</span>
+                    <input
+                      value={learningSnippetDraft.category}
+                      placeholder="例如 SQL / 实时 / 排查"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, category: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    <span>负责人</span>
+                    <input
+                      value={learningSnippetDraft.owner}
+                      placeholder="维护人 / 负责人"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, owner: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    <span>来源表</span>
+                    <input
+                      value={learningSnippetDraft.sourceTable}
+                      placeholder="来源表或中间表"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, sourceTable: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    <span>目标表</span>
+                    <input
+                      value={learningSnippetDraft.targetTable}
+                      placeholder="落地表 / 目标表"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, targetTable: event.target.value }))}
+                    />
+                  </label>
+                  <label className="span-2">
+                    <span>标签</span>
+                    <input
+                      value={learningSnippetDraft.tags}
+                      placeholder="逗号分隔，例如 SQL, 实时, 指标"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, tags: event.target.value }))}
+                    />
+                  </label>
+                  <label className="span-2">
+                    <span>用途</span>
+                    <textarea
+                      value={learningSnippetDraft.purpose}
+                      placeholder="一句话说明这段 SQL 主要解决什么问题"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, purpose: event.target.value }))}
+                    />
+                  </label>
+                  <label className="span-2">
+                    <span>备注</span>
+                    <textarea
+                      value={learningSnippetDraft.notes}
+                      placeholder="口径说明、使用注意事项、依赖条件"
+                      onChange={(event) => setLearningSnippetDraft((current) => ({ ...current, notes: event.target.value }))}
+                    />
+                  </label>
                 </div>
-              ) : null}
-              {selectedLearningSnippet.notes ? (
-                <div className="learning-snippet-modal-notes">
-                  <strong>备注</strong>
-                  <p>{selectedLearningSnippet.notes}</p>
-                </div>
-              ) : null}
-              {selectedLearningSnippet.tags?.length ? (
-                <div className="learning-sql-snippet-tags modal-tags">
-                  {selectedLearningSnippet.tags.map((tag) => (
-                    <span key={`snippet-modal-tag-${selectedLearningSnippet.id}-${tag}`}>#{tag}</span>
-                  ))}
-                </div>
-              ) : null}
+              ) : (
+                <>
+                  <div className="learning-snippet-modal-meta">
+                    <span><strong>分类</strong>{resolvedSelectedLearningSnippet.category || "未分类"}</span>
+                    <span><strong>负责人</strong>{resolvedSelectedLearningSnippet.owner || "未填写"}</span>
+                    <span><strong>来源表</strong>{resolvedSelectedLearningSnippet.sourceTable || "未填写"}</span>
+                    <span><strong>目标表</strong>{resolvedSelectedLearningSnippet.targetTable || "未填写"}</span>
+                  </div>
+                  {resolvedSelectedLearningSnippet.purpose ? (
+                    <div className="learning-snippet-modal-notes">
+                      <strong>用途</strong>
+                      <p>{resolvedSelectedLearningSnippet.purpose}</p>
+                    </div>
+                  ) : null}
+                  {resolvedSelectedLearningSnippet.notes ? (
+                    <div className="learning-snippet-modal-notes">
+                      <strong>备注</strong>
+                      <p>{resolvedSelectedLearningSnippet.notes}</p>
+                    </div>
+                  ) : null}
+                  {resolvedSelectedLearningSnippet.tags?.length ? (
+                    <div className="learning-sql-snippet-tags modal-tags">
+                      {resolvedSelectedLearningSnippet.tags.map((tag) => (
+                        <span key={`snippet-modal-tag-${resolvedSelectedLearningSnippet.id}-${tag}`}>#{tag}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              )}
               <pre className="learning-snippet-modal-code">
-                <code>{selectedLearningSnippet.rawContent || selectedLearningSnippet.content || ""}</code>
+                <code>{resolvedSelectedLearningSnippet.rawContent || resolvedSelectedLearningSnippet.content || ""}</code>
               </pre>
               <div className="learning-snippet-modal-actions">
-                <button type="button" onClick={() => openLearningSnippetSource(selectedLearningSnippet)}>打开源文档</button>
-                <button type="button" onClick={() => insertLearningSqlSnippet(selectedLearningSnippet)}>插入正文</button>
-                <button type="button" onClick={() => createDocumentFromSnippet(selectedLearningSnippet)}>生成文档</button>
-                <button type="button" onClick={() => copyLearningSqlSnippet(selectedLearningSnippet)}>复制 SQL</button>
+                <button type="button" onClick={() => openLearningSnippetSource(resolvedSelectedLearningSnippet)}>打开源文档</button>
+                <button type="button" onClick={() => insertLearningSqlSnippet(resolvedSelectedLearningSnippet)}>插入正文</button>
+                <button type="button" onClick={() => createDocumentFromSnippet(resolvedSelectedLearningSnippet)}>生成文档</button>
+                <button type="button" onClick={() => copyLearningSqlSnippet(resolvedSelectedLearningSnippet)}>复制 SQL</button>
               </div>
             </div>
           </section>

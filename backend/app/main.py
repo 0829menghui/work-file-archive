@@ -709,7 +709,18 @@ def create_project(payload: dict, user: dict = Depends(require_admin)) -> dict:
                 """,
                 (project_id, folder_name, user["id"], now, now),
             )
-        log_action(conn, user["id"], "create_project", "project", project_id, name)
+        create_detail = "；".join(
+            filter(
+                None,
+                [
+                    name,
+                    f"阶段：{stage or '未设置'}" if (stage := (payload.get("stage") or "建模").strip()) else None,
+                    f"状态：{status or '未设置'}" if (status := (payload.get("status") or "制作中").strip()) else None,
+                    f"客户：{client_name}" if (client_name := (payload.get("client_name") or "").strip()) else None,
+                ],
+            )
+        )
+        log_action(conn, user["id"], "create_project", "project", project_id, create_detail or name)
         return {"id": project_id, "name": name}
 
 
@@ -718,6 +729,7 @@ def update_project(project_id: int, payload: dict, user: dict = Depends(require_
     allowed = {"name", "client_name", "contact_name", "status", "stage", "delivery_date", "delivery_notes", "description"}
     updates = []
     values = []
+    next_values = {}
     for key in allowed:
         if key not in payload:
             continue
@@ -728,6 +740,7 @@ def update_project(project_id: int, payload: dict, user: dict = Depends(require_
             raise HTTPException(status_code=400, detail="项目名称不能为空")
         updates.append(f"{key} = ?")
         values.append(value or "")
+        next_values[key] = value or ""
     if not updates:
         raise HTTPException(status_code=400, detail="没有可更新内容")
     values.extend([utc_now(), project_id])
@@ -747,7 +760,29 @@ def update_project(project_id: int, payload: dict, user: dict = Depends(require_
             values,
         )
         updated = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
-        log_action(conn, user["id"], "update_project", "project", project_id, updated["name"])
+        change_labels = {
+            "name": "项目名",
+            "client_name": "客户",
+            "contact_name": "联系人",
+            "status": "状态",
+            "stage": "阶段",
+            "delivery_date": "交付日期",
+            "delivery_notes": "交付备注",
+            "description": "项目说明",
+        }
+
+        def normalize_display(value: str | None) -> str:
+            return value.strip() if isinstance(value, str) and value.strip() else "未设置"
+
+        detail_parts = [updated["name"]]
+        for key in sorted(next_values.keys(), key=lambda item: list(change_labels.keys()).index(item)):
+            before = normalize_display(project[key])
+            after = normalize_display(updated[key])
+            if before == after:
+                continue
+            detail_parts.append(f"{change_labels[key]}：{before} → {after}")
+
+        log_action(conn, user["id"], "update_project", "project", project_id, "；".join(detail_parts))
         return row_to_dict(updated)
 
 

@@ -1484,6 +1484,51 @@ textarea:focus-visible {
   overflow: auto;
 }
 
+.learning-snippet-modal-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.learning-snippet-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.learning-snippet-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.learning-snippet-form label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.learning-snippet-form label.span-2 {
+  grid-column: span 2;
+}
+
+.learning-snippet-form input,
+.learning-snippet-form textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #d7e4ea;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+}
+
+.learning-snippet-form textarea {
+  min-height: 104px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
 .learning-snippet-modal-meta {
   display: grid;
   gap: 10px;
@@ -1546,6 +1591,16 @@ textarea:focus-visible {
 .learning-snippet-modal-actions button:hover {
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+
+@media (max-width: 720px) {
+  .learning-snippet-form {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-snippet-form label.span-2 {
+    grid-column: auto;
+  }
 }
 
 .learning-search {
