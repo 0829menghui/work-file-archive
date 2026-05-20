@@ -1164,14 +1164,14 @@ textarea:focus-visible {
 
 .learning-utility-dock {
   position: fixed;
-  left: 0;
-  width: 44px;
+  left: 10px;
+  width: 58px;
   z-index: 26;
   pointer-events: none;
 }
 
 .learning-utility-dock.open {
-  width: 388px;
+  width: 426px;
 }
 
 .learning-utility-handle,
@@ -1183,20 +1183,19 @@ textarea:focus-visible {
   position: absolute;
   left: 0;
   top: 0;
-  width: 44px;
-  min-height: 96px;
-  padding: 0;
+  min-width: 58px;
+  min-height: 56px;
+  padding: 0 10px 0 8px;
   display: inline-flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  gap: 0;
-  border-radius: 0 22px 22px 0;
+  gap: 10px;
+  border-radius: 18px;
   background: linear-gradient(135deg, #1f4f8c, #2c5fa7);
   color: #ffffff;
-  box-shadow: 0 18px 34px rgba(23, 57, 104, 0.22);
+  box-shadow: 0 18px 34px rgba(23, 57, 104, 0.18);
   transform: translateX(0);
   transition: transform 160ms ease, box-shadow 140ms ease;
-  touch-action: none;
 }
 
 .learning-utility-handle-badge {
@@ -1207,7 +1206,6 @@ textarea:focus-visible {
   flex: 0 0 auto;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
-  cursor: grab;
 }
 
 .learning-utility-handle-badge svg {
@@ -1215,8 +1213,9 @@ textarea:focus-visible {
   pointer-events: none;
 }
 
-.learning-utility-handle-badge:active {
-  cursor: grabbing;
+.learning-utility-handle:hover {
+  transform: translateX(4px);
+  box-shadow: 0 20px 38px rgba(23, 57, 104, 0.22);
 }
 
 .learning-utility-handle.open .learning-utility-handle-badge svg {
@@ -1224,35 +1223,37 @@ textarea:focus-visible {
 }
 
 .learning-utility-handle-label {
-  display: none;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .learning-utility-popover {
   position: absolute;
-  left: 56px;
-  top: -8px;
-  width: 330px;
+  left: 72px;
+  top: -12px;
+  width: 352px;
   max-height: min(520px, calc(100vh - 180px));
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   border: 1px solid rgba(209, 223, 231, 0.96);
-  border-radius: 18px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 38px rgba(23, 32, 42, 0.12);
+  box-shadow: 0 24px 44px rgba(23, 32, 42, 0.14);
   overflow: hidden;
   backdrop-filter: blur(12px);
   animation: drawer-in 140ms ease-out;
 }
 
 .learning-utility-popover-head {
-  min-height: 48px;
+  min-height: 54px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 14px;
+  padding: 0 16px;
   border-bottom: 1px solid #e3ebef;
-  background: #f9fcfd;
+  background: linear-gradient(180deg, #fbfdfe, #f6fafc);
 }
 
 .learning-utility-popover-head strong {
@@ -2558,6 +2559,12 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.learning-tag-placeholder {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 30px;
+}
+
 .learning-tag-input {
   min-width: 140px;
   flex: 1 1 160px;
@@ -2607,9 +2614,11 @@ textarea:focus-visible {
   gap: 6px;
   padding: 8px;
   border: 1px solid #d9e4ea;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 12px 28px rgba(23, 32, 42, 0.12);
+  max-height: 240px;
+  overflow: auto;
 }
 
 .learning-tag-dropdown button {
@@ -2639,6 +2648,30 @@ textarea:focus-visible {
 .learning-tag-dropdown button small {
   color: var(--muted);
   font-size: 11px;
+}
+
+.learning-tag-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learning-tag-meta-row button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef5f8;
+  color: #315766;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-tag-meta-row button:hover {
+  background: #dfeef2;
+  color: var(--accent-strong);
 }
 
 .learning-tag-add {
@@ -4640,7 +4673,7 @@ textarea:focus-visible {
   }
 
   .learning-utility-dock {
-    left: 0;
+    left: 10px;
   }
 
   .learning-utility-handle {
@@ -4648,7 +4681,7 @@ textarea:focus-visible {
   }
 
   .learning-utility-popover {
-    width: min(330px, calc(100vw - 82px));
+    width: min(352px, calc(100vw - 96px));
   }
 }
 
@@ -4737,25 +4770,30 @@ textarea:focus-visible {
   }
 
   .learning-utility-dock {
-    left: 0;
-    width: 42px;
+    left: 8px;
+    width: 54px;
   }
 
   .learning-utility-dock.open {
-    width: min(336px, calc(100vw - 18px));
+    width: min(362px, calc(100vw - 18px));
   }
 
   .learning-utility-handle {
-    width: 42px;
-    min-height: 88px;
+    min-width: 54px;
+    min-height: 52px;
+    padding: 0 8px;
   }
 
   .learning-utility-popover {
-    left: 50px;
-    width: min(300px, calc(100vw - 28px));
+    left: 66px;
+    width: min(308px, calc(100vw - 34px));
   }
 
   .learning-utility-nav {
     grid-template-columns: 1fr;
+  }
+
+  .learning-utility-handle-label {
+    display: none;
   }
 }

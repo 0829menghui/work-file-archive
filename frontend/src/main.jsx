@@ -1353,21 +1353,6 @@ function App() {
   const learningTagInputRef = useRef(null);
   const globalFinderInputRef = useRef(null);
   const learningUtilityDockRef = useRef(null);
-  const learningUtilityDragStateRef = useRef({
-    dragging: false,
-    pointerId: null,
-    startY: 0,
-    startTop: 84,
-    moved: false,
-  });
-
-  function clampLearningUtilityDockTop(nextTop, panelOpen = Boolean(learningUtilityPanel)) {
-    const viewportHeight = window.innerHeight || 0;
-    const reservedSpace = panelOpen ? 440 : 104;
-    const minTop = 72;
-    const maxTop = Math.max(minTop, viewportHeight - reservedSpace);
-    return Math.min(Math.max(Math.round(nextTop), minTop), maxTop);
-  }
 
   const token = auth?.token;
   const tree = useMemo(() => buildTree(folders), [folders]);
@@ -1881,15 +1866,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem(LEARNING_UTILITY_DOCK_TOP_STORAGE_KEY, String(learningUtilityDockTop));
   }, [learningUtilityDockTop]);
-
-  useEffect(() => {
-    setLearningUtilityDockTop((current) => clampLearningUtilityDockTop(current));
-    const handleResize = () => {
-      setLearningUtilityDockTop((current) => clampLearningUtilityDockTop(current));
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [learningUtilityPanel]);
 
   useEffect(() => {
     if (!selectedLearningItem) {
@@ -3319,40 +3295,8 @@ function App() {
     window.addEventListener("mouseup", onUp);
   }
 
-  function handleLearningUtilityHandlePointerDown(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    const dragState = learningUtilityDragStateRef.current;
-    dragState.dragging = true;
-    dragState.pointerId = event.pointerId;
-    dragState.startY = event.clientY;
-    dragState.startTop = learningUtilityDockTop;
-    dragState.moved = false;
-    const onMove = (moveEvent) => {
-      if (moveEvent.pointerId !== dragState.pointerId) return;
-      const deltaY = moveEvent.clientY - dragState.startY;
-      if (!dragState.moved && Math.abs(deltaY) > 4) {
-        dragState.moved = true;
-        document.body.classList.add("is-resizing");
-      }
-      if (!dragState.moved) return;
-      setLearningUtilityDockTop(clampLearningUtilityDockTop(dragState.startTop + deltaY));
-    };
-    const onUp = (upEvent) => {
-      if (upEvent.pointerId !== dragState.pointerId) return;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      document.body.classList.remove("is-resizing");
-      const didMove = dragState.moved;
-      dragState.dragging = false;
-      dragState.pointerId = null;
-      dragState.moved = false;
-      if (!didMove) {
-        setLearningUtilityPanel((current) => (current ? null : "filters"));
-      }
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+  function handleLearningUtilityHandleClick() {
+    setLearningUtilityPanel((current) => (current ? null : "filters"));
   }
 
   function toggleLearningSidebarPanel(panelKey) {
@@ -3726,13 +3670,13 @@ function App() {
                 type="button"
                 className={`learning-utility-handle ${learningUtilityPanel ? "open" : ""}`}
                 title={learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
-                onPointerDown={handleLearningUtilityHandlePointerDown}
+                onClick={handleLearningUtilityHandleClick}
               >
-                <span className="learning-utility-handle-badge" title="轻点展开，拖动可移动位置">
+                <span className="learning-utility-handle-badge">
                   <ChevronRight size={18} />
                 </span>
                 <span className="learning-utility-handle-label">
-                  {learningUtilityPanel ? "收起资料侧栏" : "资料侧栏"}
+                  {learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
                 </span>
               </button>
 
@@ -5063,7 +5007,9 @@ function App() {
                                     <span>×</span>
                                   </button>
                                 ))
-                              ) : null}
+                              ) : (
+                                <span className="learning-tag-placeholder">暂未设置标签，可从已有标签库中选择</span>
+                              )}
                               <div className="learning-tag-input-wrap">
                                 <input
                                   ref={learningTagInputRef}
@@ -5082,10 +5028,13 @@ function App() {
                                   type="button"
                                   className="learning-tag-trigger"
                                   onMouseDown={(event) => event.preventDefault()}
-                                  onClick={() => setLearningTagSuggestOpen((current) => !current)}
+                                  onClick={() => {
+                                    setLearningTagSuggestOpen((current) => !current);
+                                    window.requestAnimationFrame(() => learningTagInputRef.current?.focus());
+                                  }}
                                   title="展开已有标签"
                                 >
-                                  选择
+                                  标签库
                                 </button>
                                 {learningTagSuggestOpen && filteredLearningTagSuggestions.length ? (
                                   <div className="learning-tag-dropdown">
@@ -5103,6 +5052,15 @@ function App() {
                                   </div>
                                 ) : null}
                               </div>
+                            </div>
+                            <div className="learning-tag-meta-row">
+                              <span>
+                                已选 {currentLearningTags.length} 个标签
+                                {availableLearningTagChoices.length ? ` · 还可选 ${availableLearningTagChoices.length} 个` : ""}
+                              </span>
+                              {learningTagInput ? (
+                                <button type="button" onClick={() => setLearningTagInput("")}>清空筛选</button>
+                              ) : null}
                             </div>
                             {learningTagSuggestOpen && !filteredLearningTagSuggestions.length && availableLearningTagChoices.length ? (
                               <div className="learning-tag-picker">
