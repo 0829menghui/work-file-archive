@@ -37,6 +37,7 @@ const LEARNING_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-learning-recent-se
 const ARCHIVE_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-archive-recent-searches";
 const LEARNING_CUSTOM_TEMPLATES_STORAGE_KEY = "work-file-archive-learning-custom-templates";
 const LEARNING_SNIPPET_META_STORAGE_KEY = "work-file-archive-learning-snippet-meta";
+const LEARNING_SNIPPET_FAVORITES_STORAGE_KEY = "work-file-archive-learning-snippet-favorites";
 const GLOBAL_FINDER_RECENT_SEARCH_STORAGE_KEY = "work-file-archive-global-recent-searches";
 
 const LEARNING_TEMPLATES = [
@@ -1135,6 +1136,25 @@ function getTimelineTone(action = "") {
   return "neutral";
 }
 
+function getTimelineHighlights(entry = {}) {
+  const detail = String(entry.detail || "");
+  const highlights = [];
+  if (detail.includes("阶段：")) highlights.push("阶段切换");
+  if (detail.includes("交付") || detail.includes("已交付") || detail.includes("交付日期")) highlights.push("交付节点");
+  if (entry.action === "replace_file") highlights.push("版本更新");
+  if (entry.action === "update_version_remark" || entry.action === "update_version_final") highlights.push("版本说明");
+  if (entry.action === "upload_file" && detail.includes("最终")) highlights.push("最终稿");
+  return Array.from(new Set(highlights));
+}
+
+function getTimelineEntryTone(entry = {}) {
+  const highlights = getTimelineHighlights(entry);
+  if (highlights.includes("交付节点") || highlights.includes("最终稿")) return "success";
+  if (highlights.includes("阶段切换")) return "accent";
+  if (highlights.includes("版本说明")) return "info";
+  return getTimelineTone(entry.action);
+}
+
 function getPreviewKind(ext = "") {
   const value = ext.toLowerCase();
   if (IMAGE_PREVIEW_EXTENSIONS.has(value)) return "image";
@@ -1246,6 +1266,15 @@ function App() {
       return parsed && typeof parsed === "object" ? parsed : {};
     } catch {
       return {};
+    }
+  });
+  const [learningSnippetFavorites, setLearningSnippetFavorites] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LEARNING_SNIPPET_FAVORITES_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch {
+      return [];
     }
   });
   const [learningTreeWidth, setLearningTreeWidth] = useState(() => {
@@ -1573,6 +1602,10 @@ function App() {
     () => Array.from(new Set(learningSqlSnippets.map((snippet) => snippet.owner).filter(Boolean))),
     [learningSqlSnippets]
   );
+  const favoriteLearningSnippets = useMemo(
+    () => learningSqlSnippets.filter((snippet) => learningSnippetFavorites.includes(snippet.id)),
+    [learningSqlSnippets, learningSnippetFavorites]
+  );
   const learningSqlLibraryStats = useMemo(() => {
     const structured = learningSqlSnippets.filter(
       (snippet) => snippet.purpose || snippet.sourceTable || snippet.targetTable || snippet.owner
@@ -1585,11 +1618,12 @@ function App() {
     }).length;
     return [
       { label: "片段总数", value: learningSqlSnippets.length },
+      { label: "已收藏", value: learningSnippetFavorites.length },
       { label: "结构化", value: structured },
       { label: "已打标签", value: tagged },
       { label: "近 7 天更新", value: recent },
     ];
-  }, [learningSqlSnippets]);
+  }, [learningSqlSnippets, learningSnippetFavorites.length]);
   const filteredLearningSqlSnippets = useMemo(() => {
     const keyword = learningSqlLibraryQuery.trim().toLowerCase();
     return learningSqlSnippets
@@ -1616,17 +1650,27 @@ function App() {
           .includes(keyword);
       })
       .sort((a, b) => {
+        const aFavorite = learningSnippetFavorites.includes(a.id) ? 1 : 0;
+        const bFavorite = learningSnippetFavorites.includes(b.id) ? 1 : 0;
+        if (learningSqlLibrarySort === "favorite") {
+          if (bFavorite !== aFavorite) return bFavorite - aFavorite;
+          return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+        }
         if (learningSqlLibrarySort === "title") {
+          if (bFavorite !== aFavorite) return bFavorite - aFavorite;
           return (a.title || "").localeCompare(b.title || "", "zh-CN");
         }
         if (learningSqlLibrarySort === "owner") {
+          if (bFavorite !== aFavorite) return bFavorite - aFavorite;
           return (a.owner || "").localeCompare(b.owner || "", "zh-CN")
             || (b.updatedAt || "").localeCompare(a.updatedAt || "");
         }
+        if (bFavorite !== aFavorite) return bFavorite - aFavorite;
         return (b.updatedAt || "").localeCompare(a.updatedAt || "");
       });
   }, [
     learningSqlSnippets,
+    learningSnippetFavorites,
     learningSqlLibraryQuery,
     learningSqlLibraryCategory,
     learningSqlLibraryTag,
@@ -1783,6 +1827,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(LEARNING_SNIPPET_META_STORAGE_KEY, JSON.stringify(learningSnippetMetaOverrides));
   }, [learningSnippetMetaOverrides]);
+
+  useEffect(() => {
+    localStorage.setItem(LEARNING_SNIPPET_FAVORITES_STORAGE_KEY, JSON.stringify(learningSnippetFavorites));
+  }, [learningSnippetFavorites]);
 
   useEffect(() => {
     localStorage.setItem(LEARNING_RECENT_SEARCH_STORAGE_KEY, JSON.stringify(learningRecentSearches));
@@ -3112,6 +3160,18 @@ function App() {
     }
   }
 
+  function toggleLearningSnippetFavorite(snippet) {
+    if (!snippet?.id) return;
+    const isFavorite = learningSnippetFavorites.includes(snippet.id);
+    setLearningSnippetFavorites((current) =>
+      isFavorite
+        ? current.filter((item) => item !== snippet.id)
+        : [snippet.id, ...current.filter((item) => item !== snippet.id)].slice(0, 80)
+    );
+    setMessage(isFavorite ? `已取消收藏：${snippet.title}` : `已收藏片段：${snippet.title}`);
+    window.setTimeout(() => setMessage(""), 1800);
+  }
+
   function openLearningSnippetDetail(snippet) {
     const tags = Array.isArray(snippet.tags) ? snippet.tags.join(", ") : "";
     setLearningSnippetDraft({
@@ -3867,6 +3927,32 @@ function App() {
                           </article>
                         ))}
                       </div>
+                      {favoriteLearningSnippets.length ? (
+                        <div className="learning-sql-library-favorites">
+                          <div className="learning-sql-library-favorites-head">
+                            <strong>常用片段</strong>
+                            <button
+                              type="button"
+                              className={learningSqlLibrarySort === "favorite" ? "active" : ""}
+                              onClick={() => setLearningSqlLibrarySort((current) => current === "favorite" ? "updated" : "favorite")}
+                            >
+                              {learningSqlLibrarySort === "favorite" ? "按最近更新看" : "只看收藏优先"}
+                            </button>
+                          </div>
+                          <div className="learning-sql-library-favorite-strip">
+                            {favoriteLearningSnippets.slice(0, 8).map((snippet) => (
+                              <button
+                                key={`favorite-snippet-${snippet.id}`}
+                                type="button"
+                                className="learning-sql-favorite-chip"
+                                onClick={() => openLearningSnippetDetail(snippet)}
+                              >
+                                {snippet.title}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="searchbox learning-search learning-sql-library-search">
                         <Search size={16} />
                         <input
@@ -3909,6 +3995,7 @@ function App() {
                             onChange={(event) => setLearningSqlLibrarySort(event.target.value)}
                           >
                             <option value="updated">最近更新</option>
+                            <option value="favorite">收藏优先</option>
                             <option value="title">按标题</option>
                             <option value="owner">按负责人</option>
                           </select>
@@ -3923,7 +4010,10 @@ function App() {
                               onClick={() => openLearningSnippetDetail(snippet)}
                             >
                               <div className="learning-sql-snippet-meta">
-                                <strong>{snippet.title}</strong>
+                                <strong>
+                                  {learningSnippetFavorites.includes(snippet.id) ? <span className="learning-sql-snippet-favorite-mark">★</span> : null}
+                                  {snippet.title}
+                                </strong>
                                 <span>{[snippet.itemTitle, formatDateTimeLabel(snippet.updatedAt)].filter(Boolean).join(" · ")}</span>
                               </div>
                               <small>
@@ -3952,6 +4042,13 @@ function App() {
                               ) : null}
                             </button>
                             <div className="learning-sql-snippet-actions">
+                              <button
+                                type="button"
+                                className={`learning-sql-snippet-copy ${learningSnippetFavorites.includes(snippet.id) ? "active" : ""}`}
+                                onClick={() => toggleLearningSnippetFavorite(snippet)}
+                              >
+                                {learningSnippetFavorites.includes(snippet.id) ? "取消收藏" : "收藏"}
+                              </button>
                               <button
                                 type="button"
                                 className="learning-sql-snippet-copy"
@@ -4254,12 +4351,19 @@ function App() {
                       {projectTimeline.length ? (
                         <div className="archive-project-timeline-list">
                           {projectTimeline.map((entry) => (
-                            <div className={`archive-project-timeline-item tone-${getTimelineTone(entry.action)}`} key={`timeline-${entry.id}`}>
+                            <div className={`archive-project-timeline-item tone-${getTimelineEntryTone(entry)}`} key={`timeline-${entry.id}`}>
                               <div className="archive-project-timeline-dot" />
                               <div className="archive-project-timeline-copy">
                                 <div className="archive-project-timeline-title">
                                   <strong>{formatAuditActionLabel(entry.action)}</strong>
-                                  <em>{formatTimelineTargetLabel(entry.target_type)}</em>
+                                  <div className="archive-project-timeline-badges">
+                                    <em>{formatTimelineTargetLabel(entry.target_type)}</em>
+                                    {getTimelineHighlights(entry).map((item) => (
+                                      <span key={`timeline-highlight-${entry.id}-${item}`} className="archive-project-timeline-highlight">
+                                        {item}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                                 <span>
                                   {[entry.user_name || "系统", formatDateTimeLabel(entry.created_at) || ""]
@@ -5850,6 +5954,13 @@ function App() {
             </div>
             <div className="learning-snippet-modal-body">
               <div className="learning-snippet-modal-toolbar">
+                <button
+                  type="button"
+                  className={learningSnippetFavorites.includes(resolvedSelectedLearningSnippet.id) ? "active" : ""}
+                  onClick={() => toggleLearningSnippetFavorite(resolvedSelectedLearningSnippet)}
+                >
+                  {learningSnippetFavorites.includes(resolvedSelectedLearningSnippet.id) ? "已收藏" : "收藏片段"}
+                </button>
                 <button type="button" onClick={() => setLearningSnippetEditing((current) => !current)}>
                   {learningSnippetEditing ? "完成查看" : "编辑资料"}
                 </button>
@@ -5929,6 +6040,7 @@ function App() {
                 <>
                   <div className="learning-snippet-modal-meta">
                     <span><strong>分类</strong>{resolvedSelectedLearningSnippet.category || "未分类"}</span>
+                    <span><strong>收藏状态</strong>{learningSnippetFavorites.includes(resolvedSelectedLearningSnippet.id) ? "常用片段" : "未收藏"}</span>
                     <span><strong>负责人</strong>{resolvedSelectedLearningSnippet.owner || "未填写"}</span>
                     <span><strong>来源表</strong>{resolvedSelectedLearningSnippet.sourceTable || "未填写"}</span>
                     <span><strong>目标表</strong>{resolvedSelectedLearningSnippet.targetTable || "未填写"}</span>
