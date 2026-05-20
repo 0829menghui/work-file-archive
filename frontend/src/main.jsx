@@ -1348,6 +1348,7 @@ function App() {
   const [globalFinderOpen, setGlobalFinderOpen] = useState(false);
   const [globalFinderQuery, setGlobalFinderQuery] = useState("");
   const [globalFinderScope, setGlobalFinderScope] = useState("all");
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
   const uploadRef = useRef(null);
   const folderUploadRef = useRef(null);
   const learningTitleRef = useRef(null);
@@ -2204,6 +2205,154 @@ function App() {
     projects,
     adminActionAlerts,
   ]);
+  const workspaceCommandResults = useMemo(() => {
+    const keyword = workspaceSearchQuery.trim().toLowerCase();
+    if (!keyword) return [];
+    const results = [];
+    if (canViewLearningModule) {
+      learningItems
+        .filter((item) =>
+          [item.title, item.category, item.tags || "", item.content || ""].join(" ").toLowerCase().includes(keyword)
+        )
+        .slice(0, 5)
+        .forEach((item) => {
+          results.push({
+            id: `workspace-command-learning-${item.id}`,
+            group: item.item_type === "folder" ? "知识目录" : "知识文档",
+            title: item.title,
+            meta: [item.category || "未分类", item.status || "计划中"].join(" · "),
+            onClick: () => {
+              setActiveModule("learning");
+              selectLearningItem(item);
+            },
+          });
+        });
+      learningSqlSnippets
+        .filter((snippet) =>
+          [
+            snippet.title,
+            snippet.itemTitle,
+            snippet.category,
+            (snippet.tags || []).join(" "),
+            snippet.purpose,
+            snippet.sourceTable,
+            snippet.targetTable,
+            snippet.rawContent,
+          ].join(" ").toLowerCase().includes(keyword)
+        )
+        .slice(0, 5)
+        .forEach((snippet) => {
+          results.push({
+            id: `workspace-command-snippet-${snippet.id}`,
+            group: "SQL 片段",
+            title: snippet.title,
+            meta: [snippet.itemTitle, snippet.category || "SQL", snippet.owner || ""].filter(Boolean).join(" · "),
+            onClick: () => {
+              setActiveModule("learning");
+              openLearningSnippetSource(snippet);
+            },
+          });
+        });
+    }
+    if (canViewArchiveModule) {
+      projects
+        .filter((item) =>
+          [item.name, item.client_name, item.contact_name, item.description, item.stage, item.status]
+            .join(" ")
+            .toLowerCase()
+            .includes(keyword)
+        )
+        .slice(0, 5)
+        .forEach((item) => {
+          results.push({
+            id: `workspace-command-project-${item.id}`,
+            group: "3D 项目",
+            title: item.name,
+            meta: [item.client_name || "未填客户", item.stage || "建模", item.status || "制作中"].join(" · "),
+            onClick: () => {
+              setActiveModule("archive_3d");
+              setProject(item);
+            },
+          });
+        });
+    }
+    if (canViewAdminModule) {
+      adminData.users
+        .filter((item) => [item.display_name, item.username, item.role].join(" ").toLowerCase().includes(keyword))
+        .slice(0, 4)
+        .forEach((item) => {
+          results.push({
+            id: `workspace-command-user-${item.id}`,
+            group: "用户",
+            title: item.display_name,
+            meta: `@${item.username} · ${item.role === "admin" ? "管理员" : "普通用户"}`,
+            onClick: () => {
+              setActiveModule("admin");
+              setAdminFilters((current) => ({ ...current, userQuery: item.username }));
+            },
+          });
+        });
+    }
+    return results.slice(0, 10);
+  }, [
+    workspaceSearchQuery,
+    canViewLearningModule,
+    canViewArchiveModule,
+    canViewAdminModule,
+    learningItems,
+    learningSqlSnippets,
+    projects,
+    adminData.users,
+  ]);
+  const workspaceQuickActions = useMemo(
+    () => [
+      canEditLearningModule
+        ? {
+            label: "写学习文档",
+            hint: "沉淀方案、SQL、复盘",
+            onClick: () => {
+              setActiveModule("learning");
+              createLearningItem();
+            },
+          }
+        : null,
+      canViewLearningModule
+        ? {
+            label: "打开 SQL 片段库",
+            hint: `${learningSqlSnippets.length} 条片段`,
+            onClick: () => {
+              setActiveModule("learning");
+              setLearningSidebarPanels((current) => ({ ...current, sqlLibrary: true }));
+              setLearningUtilityPanel("sqlLibrary");
+            },
+          }
+        : null,
+      canEditArchiveModule
+        ? {
+            label: "新建 3D 项目",
+            hint: "整理交付资料",
+            onClick: () => {
+              setActiveModule("archive_3d");
+              createProject();
+            },
+          }
+        : null,
+      canViewAdminModule
+        ? {
+            label: "检查权限",
+            hint: "账号、模块、日志",
+            onClick: () => setActiveModule("admin"),
+          }
+        : null,
+    ].filter(Boolean),
+    [
+      canEditLearningModule,
+      canViewLearningModule,
+      canEditArchiveModule,
+      canViewAdminModule,
+      learningSqlSnippets.length,
+    ]
+  );
   const filteredAdminUsers = useMemo(() => {
     const keyword = adminFilters.userQuery.trim().toLowerCase();
     return adminData.users.filter((item) => {
@@ -2983,7 +3132,8 @@ function App() {
   }
 
   async function createProject() {
-    if (!canEditActiveModule) return;
+    const canCreateProject = activeModule === "archive_3d" ? canEditActiveModule : canEditArchiveModule;
+    if (!canCreateProject) return;
     const name = window.prompt("项目名称");
     if (!name) return;
     try {
@@ -3320,7 +3470,8 @@ function App() {
   }
 
   async function createLearningItemWithPayload(payload, successMessage = "已新建文档") {
-    if (!canEditActiveModule) return;
+    const canCreateLearningItem = activeModule === "learning" ? canEditActiveModule : canEditLearningModule;
+    if (!canCreateLearningItem) return;
     try {
       const created = await apiFetch(
         "/learning/items",
@@ -5094,40 +5245,43 @@ function App() {
                 <strong>今天先从全局看一眼，再进模块处理细节。</strong>
                 <p>我们把归档、知识和后台信息放到同一个工作台里，这样你每次打开系统都能先知道哪里有进展、哪里还需要补。</p>
               </div>
-              <div className="workspace-home-hero-actions">
-                {canEditLearningModule ? (
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => {
-                      setActiveModule("learning");
-                      createLearningItem();
-                    }}
-                  >
-                    新建知识文档
+              <div className="workspace-command-center">
+                <div className="workspace-command-search">
+                  <Search size={16} />
+                  <input
+                    value={workspaceSearchQuery}
+                    placeholder="搜索文档、SQL、项目、用户"
+                    onChange={(event) => setWorkspaceSearchQuery(event.target.value)}
+                  />
+                  <button type="button" onClick={() => setGlobalFinderOpen(true)}>
+                    全局搜索
                   </button>
-                ) : null}
-                {canEditArchiveModule ? (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => {
-                      setActiveModule("archive_3d");
-                      createProject();
-                    }}
-                  >
-                    新建 3D 项目
-                  </button>
-                ) : null}
-                {canViewAdminModule ? (
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setActiveModule("admin")}
-                  >
-                    打开系统管理
-                  </button>
-                ) : null}
+                </div>
+                {workspaceSearchQuery.trim() ? (
+                  <div className="workspace-command-results">
+                    {workspaceCommandResults.length ? workspaceCommandResults.map((item) => (
+                      <button key={item.id} type="button" onClick={item.onClick}>
+                        <span>{item.group}</span>
+                        <strong>{item.title}</strong>
+                        <small>{item.meta}</small>
+                      </button>
+                    )) : (
+                      <div className="workspace-home-empty">没有搜到匹配内容，可以打开全局搜索扩大范围。</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="workspace-quick-action-grid">
+                    {workspaceQuickActions.map((item) => (
+                      <button key={item.label} type="button" onClick={item.onClick}>
+                        <strong>{item.label}</strong>
+                        <span>{item.hint}</span>
+                      </button>
+                    ))}
+                    {!workspaceQuickActions.length ? (
+                      <div className="workspace-home-empty">当前账号只有查看入口，先从模块卡片进入内容。</div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </section>
 
