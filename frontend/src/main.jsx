@@ -3798,13 +3798,11 @@ function App() {
                 type="button"
                 className={`learning-utility-handle ${learningUtilityPanel ? "open" : ""}`}
                 title={learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
+                data-label={learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
                 onClick={handleLearningUtilityHandleClick}
               >
                 <span className="learning-utility-handle-badge">
                   <ChevronRight size={18} />
-                </span>
-                <span className="learning-utility-handle-label">
-                  {learningUtilityPanel ? "收起资料侧栏" : "打开资料侧栏"}
                 </span>
               </button>
 
