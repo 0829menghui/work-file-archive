@@ -794,6 +794,21 @@ textarea:focus-visible {
   box-shadow: 0 0 0 4px rgba(27, 129, 148, 0.12);
 }
 
+.archive-project-timeline-item.tone-success .archive-project-timeline-dot {
+  background: #2f9a67;
+  box-shadow: 0 0 0 4px rgba(47, 154, 103, 0.12);
+}
+
+.archive-project-timeline-item.tone-danger .archive-project-timeline-dot {
+  background: #c85d5d;
+  box-shadow: 0 0 0 4px rgba(200, 93, 93, 0.12);
+}
+
+.archive-project-timeline-item.tone-accent .archive-project-timeline-dot {
+  background: #326bb8;
+  box-shadow: 0 0 0 4px rgba(50, 107, 184, 0.12);
+}
+
 .archive-project-timeline-copy {
   display: grid;
   gap: 4px;
@@ -805,6 +820,26 @@ textarea:focus-visible {
 
 .archive-project-timeline-copy strong {
   color: var(--text);
+}
+
+.archive-project-timeline-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.archive-project-timeline-title em {
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: #eef5f8;
+  color: #3b5f70;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .archive-project-timeline-copy span,
@@ -1311,7 +1346,7 @@ textarea:focus-visible {
 
 .learning-sql-filter-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1322,6 +1357,33 @@ textarea:focus-visible {
   padding: 0 10px;
   background: #ffffff;
   color: var(--text);
+}
+
+.learning-sql-library-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-sql-library-stat {
+  padding: 12px;
+  border: 1px solid #dce7ec;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f7fbfd);
+  display: grid;
+  gap: 4px;
+}
+
+.learning-sql-library-stat strong {
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.learning-sql-library-stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .learning-sql-library-list {
@@ -1457,6 +1519,25 @@ textarea:focus-visible {
 .learning-sql-snippet-copy:hover {
   background: #dcebf0;
   color: var(--accent-strong);
+}
+
+@media (max-width: 900px) {
+  .learning-sql-library-overview,
+  .learning-sql-filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .learning-sql-library-overview,
+  .learning-sql-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .archive-project-timeline-title {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .learning-sql-empty {

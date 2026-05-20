@@ -1092,6 +1092,11 @@ function nowTimeLabel() {
   });
 }
 
+function formatDateTimeLabel(value = "") {
+  if (!value) return "";
+  return value.slice(0, 16).replace("T", " ");
+}
+
 function formatAuditActionLabel(action = "") {
   const labels = {
     create_project: "新建项目",
@@ -1120,6 +1125,14 @@ function formatTimelineTargetLabel(targetType = "") {
     file_version: "版本",
   };
   return labels[targetType] || "记录";
+}
+
+function getTimelineTone(action = "") {
+  if (action === "create_project" || action === "create_folder" || action === "upload_file") return "success";
+  if (action === "update_project" || action === "update_version_remark") return "info";
+  if (action === "move_folder" || action === "move_file" || action === "replace_file") return "accent";
+  if (action === "delete_folder" || action === "delete_file") return "danger";
+  return "neutral";
 }
 
 function getPreviewKind(ext = "") {
@@ -1257,6 +1270,7 @@ function App() {
   const [learningSqlLibraryCategory, setLearningSqlLibraryCategory] = useState("all");
   const [learningSqlLibraryTag, setLearningSqlLibraryTag] = useState("all");
   const [learningSqlLibraryOwner, setLearningSqlLibraryOwner] = useState("all");
+  const [learningSqlLibrarySort, setLearningSqlLibrarySort] = useState("updated");
   const [selectedLearningSnippet, setSelectedLearningSnippet] = useState(null);
   const [learningSnippetEditing, setLearningSnippetEditing] = useState(false);
   const [learningSnippetDraft, setLearningSnippetDraft] = useState({
@@ -1559,31 +1573,66 @@ function App() {
     () => Array.from(new Set(learningSqlSnippets.map((snippet) => snippet.owner).filter(Boolean))),
     [learningSqlSnippets]
   );
+  const learningSqlLibraryStats = useMemo(() => {
+    const structured = learningSqlSnippets.filter(
+      (snippet) => snippet.purpose || snippet.sourceTable || snippet.targetTable || snippet.owner
+    ).length;
+    const tagged = learningSqlSnippets.filter((snippet) => (snippet.tags || []).length).length;
+    const recent = learningSqlSnippets.filter((snippet) => {
+      if (!snippet.updatedAt) return false;
+      const timestamp = new Date(snippet.updatedAt).getTime();
+      return Number.isFinite(timestamp) && timestamp >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+    }).length;
+    return [
+      { label: "片段总数", value: learningSqlSnippets.length },
+      { label: "结构化", value: structured },
+      { label: "已打标签", value: tagged },
+      { label: "近 7 天更新", value: recent },
+    ];
+  }, [learningSqlSnippets]);
   const filteredLearningSqlSnippets = useMemo(() => {
     const keyword = learningSqlLibraryQuery.trim().toLowerCase();
-    return learningSqlSnippets.filter((snippet) => {
-      const categoryMatched = learningSqlLibraryCategory === "all" || snippet.category === learningSqlLibraryCategory;
-      const tagMatched = learningSqlLibraryTag === "all" || (snippet.tags || []).includes(learningSqlLibraryTag);
-      const ownerMatched = learningSqlLibraryOwner === "all" || snippet.owner === learningSqlLibraryOwner;
-      if (!categoryMatched || !tagMatched || !ownerMatched) return false;
-      if (!keyword) return true;
-      return [
-        snippet.title,
-        snippet.itemTitle,
-        snippet.category,
-        snippet.tags.join(" "),
-        snippet.purpose,
-        snippet.sourceTable,
-        snippet.targetTable,
-        snippet.owner,
-        snippet.notes,
-        snippet.rawContent,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword);
-    });
-  }, [learningSqlSnippets, learningSqlLibraryQuery, learningSqlLibraryCategory, learningSqlLibraryTag, learningSqlLibraryOwner]);
+    return learningSqlSnippets
+      .filter((snippet) => {
+        const categoryMatched = learningSqlLibraryCategory === "all" || snippet.category === learningSqlLibraryCategory;
+        const tagMatched = learningSqlLibraryTag === "all" || (snippet.tags || []).includes(learningSqlLibraryTag);
+        const ownerMatched = learningSqlLibraryOwner === "all" || snippet.owner === learningSqlLibraryOwner;
+        if (!categoryMatched || !tagMatched || !ownerMatched) return false;
+        if (!keyword) return true;
+        return [
+          snippet.title,
+          snippet.itemTitle,
+          snippet.category,
+          snippet.tags.join(" "),
+          snippet.purpose,
+          snippet.sourceTable,
+          snippet.targetTable,
+          snippet.owner,
+          snippet.notes,
+          snippet.rawContent,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword);
+      })
+      .sort((a, b) => {
+        if (learningSqlLibrarySort === "title") {
+          return (a.title || "").localeCompare(b.title || "", "zh-CN");
+        }
+        if (learningSqlLibrarySort === "owner") {
+          return (a.owner || "").localeCompare(b.owner || "", "zh-CN")
+            || (b.updatedAt || "").localeCompare(a.updatedAt || "");
+        }
+        return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+      });
+  }, [
+    learningSqlSnippets,
+    learningSqlLibraryQuery,
+    learningSqlLibraryCategory,
+    learningSqlLibraryTag,
+    learningSqlLibraryOwner,
+    learningSqlLibrarySort,
+  ]);
   const learningTemplateCategories = useMemo(
     () => Array.from(new Set([...LEARNING_TEMPLATES, ...learningCustomTemplates].map((item) => item.category).filter(Boolean))),
     [learningCustomTemplates]
@@ -3810,6 +3859,14 @@ function App() {
 
                   {learningUtilityPanel === "sqlLibrary" ? (
                     <div className="learning-utility-popover-body">
+                      <div className="learning-sql-library-overview">
+                        {learningSqlLibraryStats.map((item) => (
+                          <article key={`snippet-stat-${item.label}`} className="learning-sql-library-stat">
+                            <strong>{item.value}</strong>
+                            <span>{item.label}</span>
+                          </article>
+                        ))}
+                      </div>
                       <div className="searchbox learning-search learning-sql-library-search">
                         <Search size={16} />
                         <input
@@ -3847,6 +3904,14 @@ function App() {
                               <option key={`snippet-owner-${item}`} value={item}>{item}</option>
                             ))}
                           </select>
+                          <select
+                            value={learningSqlLibrarySort}
+                            onChange={(event) => setLearningSqlLibrarySort(event.target.value)}
+                          >
+                            <option value="updated">最近更新</option>
+                            <option value="title">按标题</option>
+                            <option value="owner">按负责人</option>
+                          </select>
                         </div>
                       </div>
                       <div className="learning-sql-library-list">
@@ -3859,7 +3924,7 @@ function App() {
                             >
                               <div className="learning-sql-snippet-meta">
                                 <strong>{snippet.title}</strong>
-                                <span>{snippet.itemTitle}</span>
+                                <span>{[snippet.itemTitle, formatDateTimeLabel(snippet.updatedAt)].filter(Boolean).join(" · ")}</span>
                               </div>
                               <small>
                                 {snippet.category || "未分类"}
@@ -4189,12 +4254,15 @@ function App() {
                       {projectTimeline.length ? (
                         <div className="archive-project-timeline-list">
                           {projectTimeline.map((entry) => (
-                            <div className="archive-project-timeline-item" key={`timeline-${entry.id}`}>
+                            <div className={`archive-project-timeline-item tone-${getTimelineTone(entry.action)}`} key={`timeline-${entry.id}`}>
                               <div className="archive-project-timeline-dot" />
                               <div className="archive-project-timeline-copy">
-                                <strong>{formatAuditActionLabel(entry.action)}</strong>
+                                <div className="archive-project-timeline-title">
+                                  <strong>{formatAuditActionLabel(entry.action)}</strong>
+                                  <em>{formatTimelineTargetLabel(entry.target_type)}</em>
+                                </div>
                                 <span>
-                                  {[formatTimelineTargetLabel(entry.target_type), entry.user_name || "系统", entry.created_at?.slice(0, 16).replace("T", " ") || ""]
+                                  {[entry.user_name || "系统", formatDateTimeLabel(entry.created_at) || ""]
                                     .filter(Boolean)
                                     .join(" · ")}
                                 </span>
