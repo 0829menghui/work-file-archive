@@ -1300,6 +1300,7 @@ function App() {
   const [learningSqlLibraryTag, setLearningSqlLibraryTag] = useState("all");
   const [learningSqlLibraryOwner, setLearningSqlLibraryOwner] = useState("all");
   const [learningSqlLibrarySort, setLearningSqlLibrarySort] = useState("updated");
+  const [learningSqlLibraryMode, setLearningSqlLibraryMode] = useState("all");
   const [selectedLearningSnippet, setSelectedLearningSnippet] = useState(null);
   const [learningSnippetEditing, setLearningSnippetEditing] = useState(false);
   const [learningSnippetDraft, setLearningSnippetDraft] = useState({
@@ -1617,6 +1618,31 @@ function App() {
         const tagMatched = learningSqlLibraryTag === "all" || (snippet.tags || []).includes(learningSqlLibraryTag);
         const ownerMatched = learningSqlLibraryOwner === "all" || snippet.owner === learningSqlLibraryOwner;
         if (!categoryMatched || !tagMatched || !ownerMatched) return false;
+        const snippetOwner = (snippet.owner || "").trim();
+        const currentOwnerNames = [
+          auth?.user?.display_name || "",
+          auth?.user?.username || "",
+        ]
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const hasStructuredMeta = Boolean(
+          snippet.purpose || snippet.sourceTable || snippet.targetTable || snippet.owner || snippet.notes
+        );
+        const recentTimestamp = snippet.updatedAt ? new Date(snippet.updatedAt).getTime() : NaN;
+        const modeMatched =
+          learningSqlLibraryMode === "all"
+          || (learningSqlLibraryMode === "favorites" && learningSnippetFavorites.includes(snippet.id))
+          || (learningSqlLibraryMode === "needsMeta" && !hasStructuredMeta)
+          || (
+            learningSqlLibraryMode === "mine"
+            && currentOwnerNames.some((name) => name && snippetOwner && snippetOwner.includes(name))
+          )
+          || (
+            learningSqlLibraryMode === "recent"
+            && Number.isFinite(recentTimestamp)
+            && recentTimestamp >= Date.now() - 7 * 24 * 60 * 60 * 1000
+          );
+        if (!modeMatched) return false;
         if (!keyword) return true;
         return [
           snippet.title,
@@ -1661,6 +1687,9 @@ function App() {
     learningSqlLibraryTag,
     learningSqlLibraryOwner,
     learningSqlLibrarySort,
+    learningSqlLibraryMode,
+    auth?.user?.display_name,
+    auth?.user?.username,
   ]);
   const learningTemplateCategories = useMemo(
     () => Array.from(new Set([...LEARNING_TEMPLATES, ...learningCustomTemplates].map((item) => item.category).filter(Boolean))),
@@ -1722,6 +1751,47 @@ function App() {
       { label: "7天操作日志", value: recentLogs },
     ];
   }, [adminData]);
+  const adminActionAlerts = useMemo(() => {
+    const inactiveUsers = adminData.users.filter((item) => !item.is_active).length;
+    const usersWithoutModuleAccess = adminData.users.filter((item) => {
+      if (item.role === "admin") return false;
+      const moduleValues = Object.values(item.modules || {});
+      return !moduleValues.some((value) => value && value !== "none");
+    }).length;
+    const hiddenModules = adminData.modules.filter((item) => item.is_hidden).length;
+    const recentDestructiveLogs = adminData.logs.filter((item) => {
+      const action = (item.action || "").toLowerCase();
+      if (!/(delete|remove|restore|disable|inactive|失效|删除|停用)/.test(action)) return false;
+      const created = item.created_at ? new Date(item.created_at).getTime() : NaN;
+      return Number.isFinite(created) && created >= Date.now() - 3 * 24 * 60 * 60 * 1000;
+    }).length;
+    return [
+      {
+        label: "待处理停用账号",
+        value: inactiveUsers,
+        tone: inactiveUsers ? "warning" : "calm",
+        hint: inactiveUsers ? "建议核对是否还需要保留授权" : "当前没有停用账号待清理",
+      },
+      {
+        label: "未授权普通用户",
+        value: usersWithoutModuleAccess,
+        tone: usersWithoutModuleAccess ? "accent" : "calm",
+        hint: usersWithoutModuleAccess ? "这些账号登录后可能看不到可用模块" : "普通用户都已至少拥有一个模块权限",
+      },
+      {
+        label: "隐藏模块",
+        value: hiddenModules,
+        tone: hiddenModules ? "info" : "calm",
+        hint: hiddenModules ? "普通用户侧当前有模块被隐藏" : "当前没有隐藏模块",
+      },
+      {
+        label: "3天敏感操作",
+        value: recentDestructiveLogs,
+        tone: recentDestructiveLogs ? "danger" : "calm",
+        hint: recentDestructiveLogs ? "建议查看操作日志确认删除/停用类动作" : "最近 3 天没有高风险变更",
+      },
+    ];
+  }, [adminData]);
   const archiveVisibleProjects = useMemo(() => {
     const keyword = archiveProjectQuery.trim().toLowerCase();
     return projects.filter((item) => {
@@ -1744,6 +1814,46 @@ function App() {
         .includes(keyword);
     });
   }, [projects, archiveProjectQuery, archiveProjectStageFilter]);
+  const archiveProjectInsights = useMemo(() => {
+    if (!project) return [];
+    const relatedFolders = folders.filter((item) => item.project_id === project.id);
+    const latestAction = projectTimeline[0];
+    const completionChecks = [
+      project.client_name,
+      project.contact_name,
+      project.stage,
+      project.delivery_date,
+      project.delivery_notes,
+      project.description,
+    ].filter((item) => String(item || "").trim()).length;
+    const readiness = Math.round((completionChecks / 6) * 100);
+    return [
+      {
+        label: "资料完整度",
+        value: `${readiness}%`,
+        hint: readiness >= 80 ? "交付信息较完整" : "建议继续补齐客户、日期和备注",
+        tone: readiness >= 80 ? "good" : readiness >= 50 ? "warm" : "plain",
+      },
+      {
+        label: "目录层级",
+        value: relatedFolders.length,
+        hint: relatedFolders.length ? "已建立项目目录骨架" : "还没有项目目录",
+        tone: relatedFolders.length ? "good" : "plain",
+      },
+      {
+        label: "最近动作",
+        value: latestAction ? formatAuditActionLabel(latestAction.action) : "暂无",
+        hint: latestAction ? formatDateTimeLabel(latestAction.created_at) || "刚刚更新" : "项目还没有时间线记录",
+        tone: latestAction ? "info" : "plain",
+      },
+      {
+        label: "交付状态",
+        value: project.status || "制作中",
+        hint: project.delivery_date ? `计划交付 ${project.delivery_date}` : "还未设置交付日期",
+        tone: project.status === "已交付" ? "good" : project.status === "待确认" ? "warm" : "plain",
+      },
+    ];
+  }, [project, folders, projectTimeline]);
   const filteredAdminUsers = useMemo(() => {
     const keyword = adminFilters.userQuery.trim().toLowerCase();
     return adminData.users.filter((item) => {
@@ -3897,6 +4007,46 @@ function App() {
                           </div>
                         </div>
                       ) : null}
+                      <div className="learning-sql-library-modes">
+                        {[
+                          { key: "all", label: "全部片段", hint: `${learningSqlLibraryStats[0]?.value || 0} 条` },
+                          { key: "favorites", label: "常用收藏", hint: `${favoriteLearningSnippets.length} 条` },
+                          {
+                            key: "needsMeta",
+                            label: "待补资料",
+                            hint: `${learningSqlSnippets.filter((item) => !(item.purpose || item.sourceTable || item.targetTable || item.owner || item.notes)).length} 条`,
+                          },
+                          {
+                            key: "mine",
+                            label: "我维护的",
+                            hint: `${learningSqlSnippets.filter((item) => {
+                              const owner = (item.owner || "").trim();
+                              const names = [auth?.user?.display_name || "", auth?.user?.username || ""]
+                                .map((value) => value.trim())
+                                .filter(Boolean);
+                              return names.some((name) => owner && owner.includes(name));
+                            }).length} 条`,
+                          },
+                          {
+                            key: "recent",
+                            label: "近 7 天",
+                            hint: `${learningSqlSnippets.filter((item) => {
+                              const updated = item.updatedAt ? new Date(item.updatedAt).getTime() : NaN;
+                              return Number.isFinite(updated) && updated >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+                            }).length} 条`,
+                          },
+                        ].map((mode) => (
+                          <button
+                            key={`snippet-mode-${mode.key}`}
+                            type="button"
+                            className={learningSqlLibraryMode === mode.key ? "active" : ""}
+                            onClick={() => setLearningSqlLibraryMode(mode.key)}
+                          >
+                            <strong>{mode.label}</strong>
+                            <span>{mode.hint}</span>
+                          </button>
+                        ))}
+                      </div>
                       <div className="searchbox learning-search learning-sql-library-search">
                         <Search size={16} />
                         <input
@@ -4207,6 +4357,20 @@ function App() {
                     <div className="archive-project-panel-head">
                       <span>{canEditActiveModule ? "这里维护客户、状态和备注" : "当前账号可查看项目资料"}</span>
                     </div>
+                    {archiveProjectInsights.length ? (
+                      <div className="archive-project-insights">
+                        {archiveProjectInsights.map((item) => (
+                          <article
+                            key={`archive-project-insight-${item.label}`}
+                            className={`archive-project-insight tone-${item.tone || "plain"}`}
+                          >
+                            <span>{item.label}</span>
+                            <strong>{item.value}</strong>
+                            <small>{item.hint}</small>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
                     <label>
                       <span>项目名称</span>
                       <input
@@ -5495,6 +5659,20 @@ function App() {
                 <article className="admin-overview-card" key={`admin-overview-${item.label}`}>
                   <strong>{item.value}</strong>
                   <span>{item.label}</span>
+                </article>
+              ))}
+            </section>
+            <section className="admin-alert-grid">
+              {adminActionAlerts.map((item) => (
+                <article
+                  key={`admin-alert-${item.label}`}
+                  className={`admin-alert-card tone-${item.tone || "calm"}`}
+                >
+                  <div className="admin-alert-card-top">
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                  <small>{item.hint}</small>
                 </article>
               ))}
             </section>
