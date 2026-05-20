@@ -1377,6 +1377,10 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.learning-sql-snippet-tags.modal-tags {
+  margin-top: -2px;
+}
+
 .learning-sql-snippet-copy {
   min-height: 34px;
   padding: 0 12px;
@@ -1395,6 +1399,89 @@ textarea:focus-visible {
   padding: 12px 4px 4px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.learning-snippet-modal {
+  width: min(820px, 100%);
+  display: grid;
+}
+
+.learning-snippet-modal .modal-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.learning-snippet-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.learning-snippet-modal-meta {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.learning-snippet-modal-meta span,
+.learning-snippet-modal-notes {
+  padding: 12px 14px;
+  border: 1px solid #dce7ec;
+  border-radius: 12px;
+  background: #f8fbfc;
+  color: #51616d;
+  display: grid;
+  gap: 4px;
+}
+
+.learning-snippet-modal-meta strong,
+.learning-snippet-modal-notes strong {
+  color: #2b5e6f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.learning-snippet-modal-notes p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.learning-snippet-modal-code {
+  margin: 0;
+  padding: 16px;
+  border-radius: 14px;
+  background: #0f1d26;
+  color: #dbe7ed;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.learning-snippet-modal-code code {
+  white-space: pre;
+}
+
+.learning-snippet-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.learning-snippet-modal-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #eef4f7;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.learning-snippet-modal-actions button:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .learning-search {
@@ -3980,6 +4067,10 @@ textarea:focus-visible {
 .version-badge.ineffective {
   color: #66727f;
   background: #e6edf1;
+}
+
+.version-remark-button {
+  min-width: 56px;
 }
 
 .empty-version {

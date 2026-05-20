@@ -1187,6 +1187,47 @@ def update_version_final_flag(
     return dict(updated)
 
 
+@app.patch("/api/file-versions/{version_id}/remark")
+def update_version_remark(
+    version_id: int,
+    payload: dict,
+    user: dict = Depends(require_user),
+) -> dict:
+    remark = (payload.get("remark") or "").strip()
+    with get_db() as conn:
+        version = conn.execute(
+            """
+            SELECT fv.*, f.folder_id, f.name AS file_name
+            FROM file_versions fv
+            JOIN files f ON f.id = fv.file_id
+            WHERE fv.id = ?
+            """,
+            (version_id,),
+        ).fetchone()
+        if not version:
+            raise HTTPException(status_code=404, detail="版本不存在")
+        ensure_permission(conn, user, version["folder_id"], ("write",))
+        conn.execute("UPDATE file_versions SET remark = ? WHERE id = ?", (remark, version_id))
+        log_action(
+            conn,
+            user["id"],
+            "update_version_remark",
+            "file_version",
+            version_id,
+            f"{version['file_name']} v{version['version_no']} remark updated",
+        )
+        updated = conn.execute(
+            """
+            SELECT fv.*, u.display_name AS uploaded_by_name
+            FROM file_versions fv
+            LEFT JOIN users u ON u.id = fv.uploaded_by
+            WHERE fv.id = ?
+            """,
+            (version_id,),
+        ).fetchone()
+    return dict(updated)
+
+
 @app.get("/api/files/{file_id}/download")
 def download_file(file_id: int, version_id: Optional[int] = None, user: dict = Depends(require_user)):
     with get_db() as conn:

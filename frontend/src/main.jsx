@@ -1195,6 +1195,7 @@ function App() {
   const [learningSqlLibraryCategory, setLearningSqlLibraryCategory] = useState("all");
   const [learningSqlLibraryTag, setLearningSqlLibraryTag] = useState("all");
   const [learningSqlLibraryOwner, setLearningSqlLibraryOwner] = useState("all");
+  const [selectedLearningSnippet, setSelectedLearningSnippet] = useState(null);
   const [archiveSearchTick, setArchiveSearchTick] = useState(0);
   const [archiveProjectStageFilter, setArchiveProjectStageFilter] = useState("all");
   const [archiveProjectQuery, setArchiveProjectQuery] = useState("");
@@ -2520,6 +2521,24 @@ function App() {
     }
   }
 
+  async function updateVersionRemark(version) {
+    if (!canEditActiveModule || !selectedFile) return;
+    const nextRemark = window.prompt("请输入版本备注", version.remark || "");
+    if (nextRemark === null) return;
+    try {
+      await apiFetch(
+        `/file-versions/${version.id}/remark`,
+        { method: "PATCH", body: JSON.stringify({ remark: nextRemark.trim() }) },
+        token
+      );
+      const nextDetail = await apiFetch(`/files/${selectedFile.id}`, {}, token);
+      setDetail(nextDetail);
+      setMessage("版本备注已更新");
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function loadTrash() {
     try {
       const data = await apiFetch("/trash", {}, token);
@@ -2915,9 +2934,14 @@ function App() {
     }
   }
 
+  function openLearningSnippetDetail(snippet) {
+    setSelectedLearningSnippet(snippet);
+  }
+
   function openLearningSnippetSource(snippet) {
     const item = learningItems.find((current) => current.id === snippet.itemId);
     if (!item) return;
+    setSelectedLearningSnippet(null);
     selectLearningItem(item);
     setLearningEditing(false);
   }
@@ -3663,7 +3687,7 @@ function App() {
                             <button
                               type="button"
                               className="learning-sql-snippet-main"
-                              onClick={() => openLearningSnippetSource(snippet)}
+                              onClick={() => openLearningSnippetDetail(snippet)}
                             >
                               <div className="learning-sql-snippet-meta">
                                 <strong>{snippet.title}</strong>
@@ -3695,6 +3719,13 @@ function App() {
                               ) : null}
                             </button>
                             <div className="learning-sql-snippet-actions">
+                              <button
+                                type="button"
+                                className="learning-sql-snippet-copy"
+                                onClick={() => openLearningSnippetSource(snippet)}
+                              >
+                                源文档
+                              </button>
                               <button
                                 type="button"
                                 className="learning-sql-snippet-copy"
@@ -4451,6 +4482,16 @@ function App() {
                         <button title="下载版本" onClick={() => downloadFile(detail.file.id, version.id)}>
                           <Download size={15} />
                         </button>
+                        {canEditActiveModule ? (
+                          <button
+                            type="button"
+                            className="version-remark-button"
+                            title="编辑版本备注"
+                            onClick={() => updateVersionRemark(version)}
+                          >
+                            备注
+                          </button>
+                        ) : null}
                         {canEditActiveModule && version.id !== detail.file.current_version_id ? (
                           <button
                             title={version.is_effective ? "标记失效" : "恢复有效"}
@@ -5443,6 +5484,59 @@ function App() {
               {!globalFinderResults.length ? (
                 <div className="empty-version">没有匹配结果，换个关键词试试。</div>
               ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {selectedLearningSnippet ? (
+        <div className="modal-backdrop" onClick={() => setSelectedLearningSnippet(null)}>
+          <section
+            className="modal learning-snippet-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <strong>{selectedLearningSnippet.title}</strong>
+                <span>{selectedLearningSnippet.itemTitle || "SQL 片段详情"}</span>
+              </div>
+              <button onClick={() => setSelectedLearningSnippet(null)}><X size={18} /></button>
+            </div>
+            <div className="learning-snippet-modal-body">
+              <div className="learning-snippet-modal-meta">
+                <span><strong>分类</strong>{selectedLearningSnippet.category || "未分类"}</span>
+                <span><strong>负责人</strong>{selectedLearningSnippet.owner || "未填写"}</span>
+                <span><strong>来源表</strong>{selectedLearningSnippet.sourceTable || "未填写"}</span>
+                <span><strong>目标表</strong>{selectedLearningSnippet.targetTable || "未填写"}</span>
+              </div>
+              {selectedLearningSnippet.purpose ? (
+                <div className="learning-snippet-modal-notes">
+                  <strong>用途</strong>
+                  <p>{selectedLearningSnippet.purpose}</p>
+                </div>
+              ) : null}
+              {selectedLearningSnippet.notes ? (
+                <div className="learning-snippet-modal-notes">
+                  <strong>备注</strong>
+                  <p>{selectedLearningSnippet.notes}</p>
+                </div>
+              ) : null}
+              {selectedLearningSnippet.tags?.length ? (
+                <div className="learning-sql-snippet-tags modal-tags">
+                  {selectedLearningSnippet.tags.map((tag) => (
+                    <span key={`snippet-modal-tag-${selectedLearningSnippet.id}-${tag}`}>#{tag}</span>
+                  ))}
+                </div>
+              ) : null}
+              <pre className="learning-snippet-modal-code">
+                <code>{selectedLearningSnippet.rawContent || selectedLearningSnippet.content || ""}</code>
+              </pre>
+              <div className="learning-snippet-modal-actions">
+                <button type="button" onClick={() => openLearningSnippetSource(selectedLearningSnippet)}>打开源文档</button>
+                <button type="button" onClick={() => insertLearningSqlSnippet(selectedLearningSnippet)}>插入正文</button>
+                <button type="button" onClick={() => createDocumentFromSnippet(selectedLearningSnippet)}>生成文档</button>
+                <button type="button" onClick={() => copyLearningSqlSnippet(selectedLearningSnippet)}>复制 SQL</button>
+              </div>
             </div>
           </section>
         </div>
