@@ -319,7 +319,7 @@ function filterLearningTree(nodes, filters) {
     .filter(Boolean);
 }
 
-function Login({ onLogin }) {
+function Login({ onLogin, notice = "" }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
@@ -350,6 +350,7 @@ function Login({ onLogin }) {
         </div>
         <h1>个人模块化工作台</h1>
         <p>一个账号管理多个工作模块，分别服务文件归档和个人知识沉淀。</p>
+        {notice ? <div className="login-notice">{notice}</div> : null}
         <form onSubmit={submit} className="login-form">
           <label>
             用户名
@@ -1210,6 +1211,7 @@ function App() {
     parseRecentSearches(localStorage.getItem(ARCHIVE_RECENT_SEARCH_STORAGE_KEY))
   );
   const [message, setMessage] = useState("");
+  const [loginNotice, setLoginNotice] = useState("");
   const [trashOpen, setTrashOpen] = useState(false);
   const [trash, setTrash] = useState([]);
   const [selectedTrashIds, setSelectedTrashIds] = useState([]);
@@ -1354,6 +1356,7 @@ function App() {
   const learningTagInputRef = useRef(null);
   const globalFinderInputRef = useRef(null);
   const learningUtilityDockRef = useRef(null);
+  const authExpiryHandledRef = useRef(false);
 
   const token = auth?.token;
   const tree = useMemo(() => buildTree(folders), [folders]);
@@ -1896,6 +1899,8 @@ function App() {
 
   useEffect(() => {
     if (auth) {
+      authExpiryHandledRef.current = false;
+      setLoginNotice("");
       localStorage.setItem("work-file-archive-auth", JSON.stringify(auth));
       loadModules();
     }
@@ -2171,6 +2176,18 @@ function App() {
 
   function showError(err) {
     const text = err.message || String(err);
+    if (text === "登录已过期" || text === "请先登录") {
+      if (authExpiryHandledRef.current) return;
+      authExpiryHandledRef.current = true;
+      localStorage.removeItem("work-file-archive-auth");
+      setLoginNotice("登录已过期，请重新登录。");
+      setMessage("登录已过期，正在返回登录页...");
+      window.setTimeout(() => {
+        setMessage("");
+        setAuth(null);
+      }, 800);
+      return;
+    }
     setMessage(text === "没有访问该模块的权限" ? "当前账号没有访问该模块的权限" : text);
     window.setTimeout(() => setMessage(""), 3200);
   }
@@ -3577,10 +3594,11 @@ function App() {
 
   function logout() {
     localStorage.removeItem("work-file-archive-auth");
+    setLoginNotice("");
     setAuth(null);
   }
 
-  if (!auth) return <Login onLogin={setAuth} />;
+  if (!auth) return <Login onLogin={setAuth} notice={loginNotice} />;
 
   return (
     <main className={`app-shell ${activeModule === "admin" ? "compact-shell" : ""}`}>

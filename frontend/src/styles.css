@@ -101,6 +101,17 @@ textarea:focus-visible {
   line-height: 1.6;
 }
 
+.login-notice {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(214, 155, 45, 0.28);
+  background: rgba(255, 248, 232, 0.92);
+  color: #6d5314;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .login-form {
   display: grid;
   gap: 16px;
