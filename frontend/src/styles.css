@@ -749,6 +749,70 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.archive-project-timeline {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e0eaee;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fcfdfe, #f6fafc);
+}
+
+.archive-project-timeline-head {
+  display: grid;
+  gap: 4px;
+}
+
+.archive-project-timeline-head strong {
+  color: var(--text);
+}
+
+.archive-project-timeline-head span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.archive-project-timeline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.archive-project-timeline-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.archive-project-timeline-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #1b8194;
+  box-shadow: 0 0 0 4px rgba(27, 129, 148, 0.12);
+}
+
+.archive-project-timeline-copy {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #dfebef;
+  background: #ffffff;
+}
+
+.archive-project-timeline-copy strong {
+  color: var(--text);
+}
+
+.archive-project-timeline-copy span,
+.archive-project-timeline-copy small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .archive-project-save {
   width: 100%;
 }

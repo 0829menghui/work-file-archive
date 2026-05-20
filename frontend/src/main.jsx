@@ -1070,6 +1070,36 @@ function nowTimeLabel() {
   });
 }
 
+function formatAuditActionLabel(action = "") {
+  const labels = {
+    create_project: "新建项目",
+    update_project: "更新项目资料",
+    create_folder: "新建目录",
+    rename_folder: "重命名目录",
+    move_folder: "移动目录",
+    delete_folder: "删除目录",
+    upload_file: "上传文件",
+    replace_file: "上传新版本",
+    move_file: "移动文件",
+    delete_file: "删除文件",
+    restore_file: "恢复文件",
+    update_version_effectiveness: "修改版本有效性",
+    update_version_final: "设置最终版本",
+    update_version_remark: "更新版本备注",
+  };
+  return labels[action] || action || "项目操作";
+}
+
+function formatTimelineTargetLabel(targetType = "") {
+  const labels = {
+    project: "项目",
+    folder: "目录",
+    file: "文件",
+    file_version: "版本",
+  };
+  return labels[targetType] || "记录";
+}
+
 function getPreviewKind(ext = "") {
   const value = ext.toLowerCase();
   if (IMAGE_PREVIEW_EXTENSIONS.has(value)) return "image";
@@ -1114,6 +1144,7 @@ function App() {
   const [projectDraft, setProjectDraft] = useState(() => buildProjectDraft());
   const [projectSaving, setProjectSaving] = useState(false);
   const [archiveProjectPanelOpen, setArchiveProjectPanelOpen] = useState(false);
+  const [projectTimeline, setProjectTimeline] = useState([]);
   const [archiveSearch, setArchiveSearch] = useState({
     query: "",
     kind: "all",
@@ -1438,6 +1469,27 @@ function App() {
       })
       .slice(0, 6);
   }, [learningItems, selectedLearningItem?.id, learningDraft.category, learningDraft.tags, learningDraft.title]);
+  const learningReferencedDocs = useMemo(() => {
+    if (!selectedLearningItem?.id || !learningDraft.content?.trim()) return [];
+    const content = learningDraft.content.toLowerCase();
+    return learningItems
+      .filter((item) => item.item_type === "doc" && item.id !== selectedLearningItem.id)
+      .filter((item) => {
+        const title = (item.title || "").trim();
+        return title.length >= 2 && content.includes(title.toLowerCase());
+      })
+      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+      .slice(0, 6);
+  }, [learningItems, selectedLearningItem?.id, learningDraft.content]);
+  const learningMentionedByDocs = useMemo(() => {
+    const currentTitle = (learningDraft.title || "").trim().toLowerCase();
+    if (!selectedLearningItem?.id || currentTitle.length < 2) return [];
+    return learningItems
+      .filter((item) => item.item_type === "doc" && item.id !== selectedLearningItem.id)
+      .filter((item) => (item.content || "").toLowerCase().includes(currentTitle))
+      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+      .slice(0, 6);
+  }, [learningItems, selectedLearningItem?.id, learningDraft.title]);
   const learningSqlSnippets = useMemo(
     () =>
       learningItems
@@ -1789,6 +1841,14 @@ function App() {
   }, [project?.id]);
 
   useEffect(() => {
+    if (!project || activeModule !== "archive_3d") {
+      setProjectTimeline([]);
+      return;
+    }
+    loadProjectTimeline(project.id);
+  }, [project?.id, activeModule]);
+
+  useEffect(() => {
     setProjectDraft(buildProjectDraft(project));
   }, [project?.id, project?.updated_at]);
 
@@ -2126,6 +2186,19 @@ function App() {
     }
   }
 
+  async function loadProjectTimeline(projectId) {
+    if (!projectId) {
+      setProjectTimeline([]);
+      return;
+    }
+    try {
+      const data = await apiFetch(`/projects/${projectId}/timeline`, {}, token);
+      setProjectTimeline(data.logs || []);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function loadItems(folderId, search = archiveSearch) {
     try {
       const params = new URLSearchParams();
@@ -2321,6 +2394,7 @@ function App() {
         token
       );
       await loadProjects();
+      await loadProjectTimeline(project.id);
       setProject((current) => current ? { ...current, ...projectDraft } : current);
       setMessage("项目资料已保存");
     } catch (err) {
@@ -2533,6 +2607,7 @@ function App() {
       );
       const nextDetail = await apiFetch(`/files/${selectedFile.id}`, {}, token);
       setDetail(nextDetail);
+      if (project?.id) await loadProjectTimeline(project.id);
       setMessage("版本备注已更新");
     } catch (err) {
       showError(err);
@@ -4013,6 +4088,32 @@ function App() {
                         onChange={(event) => setProjectDraft((current) => ({ ...current, delivery_notes: event.target.value }))}
                       />
                     </label>
+                    <div className="archive-project-timeline">
+                      <div className="archive-project-timeline-head">
+                        <strong>项目时间线</strong>
+                        <span>最近 {projectTimeline.length || 0} 条操作，帮我们回看项目推进过程</span>
+                      </div>
+                      {projectTimeline.length ? (
+                        <div className="archive-project-timeline-list">
+                          {projectTimeline.map((entry) => (
+                            <div className="archive-project-timeline-item" key={`timeline-${entry.id}`}>
+                              <div className="archive-project-timeline-dot" />
+                              <div className="archive-project-timeline-copy">
+                                <strong>{formatAuditActionLabel(entry.action)}</strong>
+                                <span>
+                                  {[formatTimelineTargetLabel(entry.target_type), entry.user_name || "系统", entry.created_at?.slice(0, 16).replace("T", " ") || ""]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                                {entry.detail ? <small>{entry.detail}</small> : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="empty-version">这个项目还没有可展示的时间线记录。</div>
+                      )}
+                    </div>
                     {canEditActiveModule ? (
                       <button
                         type="button"
@@ -4788,6 +4889,48 @@ function App() {
                               </div>
                             </section>
                           ) : null}
+                          {learningReferencedDocs.length ? (
+                            <section className="learning-context-card">
+                              <div className="learning-context-head">
+                                <strong>引用文档</strong>
+                                <span>正文里已经点到的资料，顺手就能继续翻下去</span>
+                              </div>
+                              <div className="learning-related-list">
+                                {learningReferencedDocs.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={`reference-doc-${item.id}`}
+                                    className="learning-related-item"
+                                    onClick={() => selectLearningItem(item)}
+                                  >
+                                    <strong>{item.title}</strong>
+                                    <span>{[item.category || "未分类", item.updated_at?.slice(0, 10) || ""].filter(Boolean).join(" · ")}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ) : null}
+                          {learningMentionedByDocs.length ? (
+                            <section className="learning-context-card">
+                              <div className="learning-context-head">
+                                <strong>被引用文档</strong>
+                                <span>这些文档也在引用当前资料，回溯关系会更清楚</span>
+                              </div>
+                              <div className="learning-related-list">
+                                {learningMentionedByDocs.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={`mentioned-doc-${item.id}`}
+                                    className="learning-related-item"
+                                    onClick={() => selectLearningItem(item)}
+                                  >
+                                    <strong>{item.title}</strong>
+                                    <span>{[item.category || "未分类", item.updated_at?.slice(0, 10) || ""].filter(Boolean).join(" · ")}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ) : null}
                         </div>
 
                         <div className="learning-edit-body">
@@ -4954,6 +5097,48 @@ function App() {
                                     <span>
                                       {[item.category || "未分类", ...(item.sharedTags || []).slice(0, 2).map((tag) => `#${tag}`)].join(" · ")}
                                     </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ) : null}
+                          {learningReferencedDocs.length ? (
+                            <section className="learning-context-card">
+                              <div className="learning-context-head">
+                                <strong>引用文档</strong>
+                                <span>正文里提到的资料会直接出现在这里，继续跳转更顺</span>
+                              </div>
+                              <div className="learning-related-list">
+                                {learningReferencedDocs.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={`read-reference-doc-${item.id}`}
+                                    className="learning-related-item"
+                                    onClick={() => selectLearningItem(item)}
+                                  >
+                                    <strong>{item.title}</strong>
+                                    <span>{[item.category || "未分类", item.updated_at?.slice(0, 10) || ""].filter(Boolean).join(" · ")}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ) : null}
+                          {learningMentionedByDocs.length ? (
+                            <section className="learning-context-card">
+                              <div className="learning-context-head">
+                                <strong>被引用文档</strong>
+                                <span>当前资料被谁引用，一眼就能看出上下游关系</span>
+                              </div>
+                              <div className="learning-related-list">
+                                {learningMentionedByDocs.map((item) => (
+                                  <button
+                                    type="button"
+                                    key={`read-mentioned-doc-${item.id}`}
+                                    className="learning-related-item"
+                                    onClick={() => selectLearningItem(item)}
+                                  >
+                                    <strong>{item.title}</strong>
+                                    <span>{[item.category || "未分类", item.updated_at?.slice(0, 10) || ""].filter(Boolean).join(" · ")}</span>
                                   </button>
                                 ))}
                               </div>

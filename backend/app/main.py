@@ -768,6 +768,57 @@ def project_tree(project_id: int, user: dict = Depends(require_user)) -> dict:
     return {"project": dict(project), "folders": [dict(row) for row in folders]}
 
 
+@app.get("/api/projects/{project_id}/timeline")
+def project_timeline(project_id: int, user: dict = Depends(require_user)) -> dict:
+    with get_db() as conn:
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not project:
+            raise HTTPException(status_code=404, detail="项目不存在")
+        root_folder = conn.execute(
+            "SELECT id FROM folders WHERE project_id = ? AND parent_id IS NULL AND is_deleted = 0 ORDER BY id LIMIT 1",
+            (project_id,),
+        ).fetchone()
+        if not root_folder:
+            raise HTTPException(status_code=404, detail="项目目录不存在")
+        ensure_permission(conn, user, root_folder["id"], ("read",))
+        rows = conn.execute(
+            """
+            SELECT al.*, u.display_name AS user_name
+            FROM audit_logs al
+            LEFT JOIN users u ON u.id = al.user_id
+            WHERE
+                (al.target_type = 'project' AND al.target_id = ?)
+                OR (
+                    al.target_type = 'folder'
+                    AND EXISTS (
+                        SELECT 1 FROM folders fo
+                        WHERE fo.id = al.target_id AND fo.project_id = ?
+                    )
+                )
+                OR (
+                    al.target_type = 'file'
+                    AND EXISTS (
+                        SELECT 1 FROM files fi
+                        WHERE fi.id = al.target_id AND fi.project_id = ?
+                    )
+                )
+                OR (
+                    al.target_type = 'file_version'
+                    AND EXISTS (
+                        SELECT 1
+                        FROM file_versions fv
+                        JOIN files fi ON fi.id = fv.file_id
+                        WHERE fv.id = al.target_id AND fi.project_id = ?
+                    )
+                )
+            ORDER BY al.created_at DESC
+            LIMIT 20
+            """,
+            (project_id, project_id, project_id, project_id),
+        ).fetchall()
+    return {"logs": [dict(row) for row in rows]}
+
+
 @app.post("/api/folders")
 def create_folder(payload: dict, user: dict = Depends(require_user)) -> dict:
     project_id = int(payload.get("project_id") or 0)
