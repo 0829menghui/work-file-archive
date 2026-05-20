@@ -13,6 +13,7 @@ import {
   FolderPlus,
   HardDrive,
   History,
+  LayoutGrid,
   LogOut,
   Plus,
   RefreshCw,
@@ -563,6 +564,7 @@ function FileIcon({ ext }) {
 }
 
 function ModuleIcon({ moduleKey, size = 16 }) {
+  if (moduleKey === "workspace_home") return <LayoutGrid size={size} />;
   if (moduleKey === "archive_3d") return <Archive size={size} />;
   if (moduleKey === "learning") return <BookOpen size={size} />;
   if (moduleKey === "admin") return <Users size={size} />;
@@ -1185,7 +1187,7 @@ function App() {
     return raw ? JSON.parse(raw) : null;
   });
   const [modules, setModules] = useState([]);
-  const [activeModule, setActiveModule] = useState("archive_3d");
+  const [activeModule, setActiveModule] = useState("workspace_home");
   const [projects, setProjects] = useState([]);
   const [project, setProject] = useState(null);
   const [folders, setFolders] = useState([]);
@@ -1360,11 +1362,38 @@ function App() {
 
   const token = auth?.token;
   const tree = useMemo(() => buildTree(folders), [folders]);
-  const activeModuleInfo = modules.find((module) => module.key === activeModule);
-  const activeModuleAccess = auth?.user?.role === "admin"
-    ? "manage"
-    : activeModuleInfo?.access_level || "none";
+  const navigationModules = useMemo(
+    () => [
+      {
+        key: "workspace_home",
+        name: "工作台总览",
+        description: "从这里快速进入 3D 归档、知识库和系统管理。",
+        access_level: "view",
+      },
+      ...modules,
+    ],
+    [modules]
+  );
+  const moduleAccessMap = useMemo(
+    () => Object.fromEntries(modules.map((module) => [module.key, module.access_level || "none"])),
+    [modules]
+  );
+  const activeModuleInfo = navigationModules.find((module) => module.key === activeModule);
+  const activeModuleAccess = activeModule === "workspace_home"
+    ? "view"
+    : auth?.user?.role === "admin"
+      ? "manage"
+      : activeModuleInfo?.access_level || "none";
   const canEditActiveModule = ["edit", "manage"].includes(activeModuleAccess);
+  const canViewArchiveModule = auth?.user?.role === "admin"
+    || ["view", "edit", "manage"].includes(moduleAccessMap.archive_3d || "none");
+  const canEditArchiveModule = auth?.user?.role === "admin"
+    || ["edit", "manage"].includes(moduleAccessMap.archive_3d || "none");
+  const canViewLearningModule = auth?.user?.role === "admin"
+    || ["view", "edit", "manage"].includes(moduleAccessMap.learning || "none");
+  const canEditLearningModule = auth?.user?.role === "admin"
+    || ["edit", "manage"].includes(moduleAccessMap.learning || "none");
+  const canViewAdminModule = auth?.user?.role === "admin";
   const visibleVersions = useMemo(() => {
     if (!detail?.versions) return [];
     return showIneffectiveVersions
@@ -1857,6 +1886,186 @@ function App() {
       },
     ];
   }, [project, folders, projectTimeline]);
+  const recentArchiveProjects = useMemo(
+    () =>
+      [...projects]
+        .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+        .slice(0, 6),
+    [projects]
+  );
+  const workspaceOverviewCards = useMemo(
+    () => [
+      {
+        label: "可用模块",
+        value: navigationModules.length - 1,
+        hint: "统一入口，后面不用在模块之间来回找。",
+      },
+      {
+        label: "3D 项目",
+        value: canViewArchiveModule ? projects.length : "--",
+        hint: canViewArchiveModule ? "项目、目录和文件都能从这里快速回看。" : "当前账号没有 3D 模块访问权限。",
+      },
+      {
+        label: "知识文档",
+        value: canViewLearningModule ? learningStats.total : "--",
+        hint: canViewLearningModule ? `${learningStats.pinned} 篇已置顶，${learningStats.inProgress} 篇进行中。` : "当前账号没有知识库访问权限。",
+      },
+      {
+        label: "SQL 片段",
+        value: canViewLearningModule ? learningSqlSnippets.length : "--",
+        hint: canViewLearningModule ? `${learningSnippetFavorites.length} 条常用收藏，${learningSqlLibraryStats[2]?.value || 0} 条结构化。` : "需要知识库权限后才能查看 SQL 片段。",
+      },
+      {
+        label: "系统提醒",
+        value: canViewAdminModule ? adminActionAlerts.filter((item) => Number(item.value) > 0).length : "--",
+        hint: canViewAdminModule ? "把停用账号、隐藏模块和敏感操作先看一眼。" : "只有管理员能看到系统层面的提醒。",
+      },
+    ],
+    [
+      navigationModules.length,
+      canViewArchiveModule,
+      canViewLearningModule,
+      canViewAdminModule,
+      projects.length,
+      learningStats.total,
+      learningStats.pinned,
+      learningStats.inProgress,
+      learningSqlSnippets.length,
+      learningSnippetFavorites.length,
+      learningSqlLibraryStats,
+      adminActionAlerts,
+    ]
+  );
+  const workspaceHighlights = useMemo(() => {
+    const sections = [];
+    if (canViewArchiveModule) {
+      sections.push({
+        key: "archive",
+        title: "3D 文档归档",
+        hint: "项目、目录、文件和版本都收在一条工作流里。",
+        metric: `${projects.length} 个项目`,
+        actionLabel: "进入归档",
+        tone: "archive",
+        items: recentArchiveProjects.slice(0, 3).map((item) => ({
+          id: `archive-${item.id}`,
+          title: item.name,
+          meta: [item.client_name || "未填客户", item.stage || "建模", item.status || "制作中"].join(" · "),
+          onClick: () => {
+            setActiveModule("archive_3d");
+            setProject(item);
+          },
+        })),
+        onAction: () => setActiveModule("archive_3d"),
+      });
+    }
+    if (canViewLearningModule) {
+      sections.push({
+        key: "learning",
+        title: "知识库与 SQL",
+        hint: "学习文档、模板和片段库已经串起来了。",
+        metric: `${learningStats.total} 篇文档 / ${learningSqlSnippets.length} 条片段`,
+        actionLabel: "进入知识库",
+        tone: "learning",
+        items: learningRecentDocs.slice(0, 3).map((item) => ({
+          id: `learning-${item.id}`,
+          title: item.title,
+          meta: [item.category || "未分类", item.status || "计划中", formatDateTimeLabel(item.updated_at) || "刚刚更新"].join(" · "),
+          onClick: () => {
+            setActiveModule("learning");
+            selectLearningItem(item);
+          },
+        })),
+        onAction: () => setActiveModule("learning"),
+      });
+    }
+    if (canViewAdminModule) {
+      sections.push({
+        key: "admin",
+        title: "系统管理",
+        hint: "用户、模块授权和风险提醒集中处理。",
+        metric: `${adminOverview[0]?.value || 0} 个启用账号`,
+        actionLabel: "进入后台",
+        tone: "admin",
+        items: adminActionAlerts.slice(0, 3).map((item) => ({
+          id: `admin-${item.label}`,
+          title: item.label,
+          meta: `${item.value} · ${item.hint}`,
+          onClick: () => setActiveModule("admin"),
+        })),
+        onAction: () => setActiveModule("admin"),
+      });
+    }
+    return sections;
+  }, [
+    canViewArchiveModule,
+    canViewLearningModule,
+    canViewAdminModule,
+    projects.length,
+    recentArchiveProjects,
+    learningStats.total,
+    learningSqlSnippets.length,
+    learningRecentDocs,
+    adminOverview,
+    adminActionAlerts,
+  ]);
+  const workspaceActivityFeed = useMemo(() => {
+    const activities = [];
+    if (canViewLearningModule) {
+      activities.push(
+        ...learningRecentDocs.slice(0, 4).map((item) => ({
+          id: `workspace-doc-${item.id}`,
+          group: "知识文档",
+          title: item.title,
+          meta: [item.category || "未分类", item.status || "计划中", formatDateTimeLabel(item.updated_at) || "刚刚更新"].join(" · "),
+          action: () => {
+            setActiveModule("learning");
+            selectLearningItem(item);
+          },
+          timestamp: item.updated_at || "",
+        }))
+      );
+    }
+    if (canViewArchiveModule) {
+      activities.push(
+        ...recentArchiveProjects.slice(0, 4).map((item) => ({
+          id: `workspace-project-${item.id}`,
+          group: "3D 项目",
+          title: item.name,
+          meta: [item.client_name || "未填客户", item.stage || "建模", item.status || "制作中"].join(" · "),
+          action: () => {
+            setActiveModule("archive_3d");
+            setProject(item);
+          },
+          timestamp: item.updated_at || "",
+        }))
+      );
+    }
+    if (canViewAdminModule) {
+      activities.push(
+        ...adminData.logs.slice(0, 4).map((item, index) => ({
+          id: `workspace-log-${index}-${item.created_at || ""}`,
+          group: "系统动态",
+          title: formatAuditActionLabel(item.action),
+          meta: [item.target_type || "系统", item.user_display_name || item.username || "未知用户", formatDateTimeLabel(item.created_at) || "刚刚"].join(" · "),
+          action: () => {
+            setActiveModule("admin");
+            setAdminFilters((current) => ({ ...current, logQuery: item.action || "" }));
+          },
+          timestamp: item.created_at || "",
+        }))
+      );
+    }
+    return activities
+      .sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""))
+      .slice(0, 8);
+  }, [
+    canViewLearningModule,
+    canViewArchiveModule,
+    canViewAdminModule,
+    learningRecentDocs,
+    recentArchiveProjects,
+    adminData.logs,
+  ]);
   const filteredAdminUsers = useMemo(() => {
     const keyword = adminFilters.userQuery.trim().toLowerCase();
     return adminData.users.filter((item) => {
@@ -2072,11 +2281,24 @@ function App() {
     setSelectedFile(null);
     setDetail(null);
     if (!activeModuleInfo && activeModule !== "admin") return;
+    if (activeModule === "workspace_home") {
+      if (canViewArchiveModule) loadProjects(archiveSearch);
+      if (canViewLearningModule) loadLearningItems();
+      if (canViewAdminModule) loadAdminData();
+      return;
+    }
     if (activeModuleAccess === "none" && activeModule !== "admin") return;
     if (activeModule === "archive_3d") loadProjects(archiveSearch);
     if (activeModule === "learning") loadLearningItems();
     if (activeModule === "admin" && auth.user.role === "admin") loadAdminData();
-  }, [activeModule, auth?.token, modules.length]);
+  }, [
+    activeModule,
+    auth?.token,
+    modules.length,
+    canViewArchiveModule,
+    canViewLearningModule,
+    canViewAdminModule,
+  ]);
 
   useEffect(() => {
     if (project && activeModule === "archive_3d") loadTree(project.id);
@@ -2403,9 +2625,9 @@ function App() {
         ? [...data, { key: "admin", name: "系统管理", description: "用户和模块授权" }]
         : data;
       setModules(withAdmin);
-      const nextModule = withAdmin.some((item) => item.key === activeModule)
+      const nextModule = activeModule === "workspace_home" || withAdmin.some((item) => item.key === activeModule)
         ? activeModule
-        : withAdmin[0]?.key || "archive_3d";
+        : "workspace_home";
       setActiveModule(nextModule);
     } catch (err) {
       showError(err);
@@ -3619,7 +3841,7 @@ function App() {
           <div className="module-popover">
             <div className="module-popover-title">模块</div>
             <div className="module-list">
-              {modules.map((module) => (
+              {navigationModules.map((module) => (
                 <button
                   key={module.key}
                   className={`module-row ${activeModule === module.key ? "active" : ""}`}
@@ -3638,6 +3860,14 @@ function App() {
             </div>
           </div>
         </div>
+
+        {activeModule === "workspace_home" ? (
+          <div className="sidebar-module-panel">
+            <strong>工作台总览</strong>
+            <span>先看全局概览、最近动态和快捷入口，再决定去哪一个模块处理。</span>
+            <small>已接入 {navigationModules.length - 1} 个模块</small>
+          </div>
+        ) : null}
 
         {activeModule === "admin" ? (
           <div className="sidebar-module-panel">
@@ -4563,17 +4793,37 @@ function App() {
         <header className="topbar">
           <div>
             <h1>
+              {activeModule === "workspace_home" ? "工作台总览" : null}
               {activeModule === "archive_3d" ? project?.name || "请选择项目" : null}
               {activeModule === "learning" ? "大数据知识库" : null}
               {activeModule === "admin" ? "系统管理" : null}
             </h1>
             <p>
+              {activeModule === "workspace_home" ? "把 3D 归档、知识库和系统管理先收进一个总览里，再决定接下来处理什么。" : null}
               {activeModule === "archive_3d" ? activeFolder?.name || "请选择目录" : null}
               {activeModule === "learning" ? "在这里写方案、SQL 模板、复盘和知识文档" : null}
               {activeModule === "admin" ? "创建用户并分配模块访问权限" : null}
             </p>
           </div>
-          {activeModule === "archive_3d" ? (
+          {activeModule === "workspace_home" ? (
+            <div className="topbar-actions">
+              <div className="topbar-stats">
+                {workspaceOverviewCards.slice(0, 4).map((item) => (
+                  <span key={`workspace-stat-${item.label}`}>
+                    <strong>{item.value}</strong> {item.label}
+                  </span>
+                ))}
+              </div>
+              <div className="toolbar">
+                <IconButton label="全局搜索" onClick={() => setGlobalFinderOpen(true)}>
+                  <Search size={17} />
+                </IconButton>
+                <IconButton label="退出登录" onClick={logout}>
+                  <LogOut size={17} />
+                </IconButton>
+              </div>
+            </div>
+          ) : activeModule === "archive_3d" ? (
             <div className="topbar-actions">
               <div className="topbar-stats">
                 <span><strong>{archiveStats.projects}</strong> 项目</span>
@@ -4698,7 +4948,119 @@ function App() {
           )}
         </header>
 
-        {activeModule === "archive_3d" ? (
+        {activeModule === "workspace_home" ? (
+          <section className="module-page workspace-home-page">
+            <section className="workspace-home-hero">
+              <div className="workspace-home-hero-copy">
+                <span className="workspace-home-eyebrow">WORKSPACE OVERVIEW</span>
+                <strong>今天先从全局看一眼，再进模块处理细节。</strong>
+                <p>我们把归档、知识和后台信息放到同一个工作台里，这样你每次打开系统都能先知道哪里有进展、哪里还需要补。</p>
+              </div>
+              <div className="workspace-home-hero-actions">
+                {canViewLearningModule ? (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => {
+                      setActiveModule("learning");
+                      createLearningItem();
+                    }}
+                  >
+                    新建知识文档
+                  </button>
+                ) : null}
+                {canEditArchiveModule ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setActiveModule("archive_3d");
+                      createProject();
+                    }}
+                  >
+                    新建 3D 项目
+                  </button>
+                ) : null}
+                {canViewAdminModule ? (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setActiveModule("admin")}
+                  >
+                    打开系统管理
+                  </button>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="workspace-home-overview-grid">
+              {workspaceOverviewCards.map((item) => (
+                <article className="workspace-home-overview-card" key={`workspace-overview-${item.label}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <small>{item.hint}</small>
+                </article>
+              ))}
+            </section>
+
+            <section className="workspace-home-grid">
+              <article className="workspace-home-panel workspace-home-panel-wide">
+                <div className="workspace-home-panel-head">
+                  <div>
+                    <strong>模块焦点</strong>
+                    <span>把最常进的三个模块放在一屏里，少一点切换成本。</span>
+                  </div>
+                </div>
+                <div className="workspace-home-module-grid">
+                  {workspaceHighlights.map((section) => (
+                    <article className={`workspace-home-module-card tone-${section.tone}`} key={`workspace-highlight-${section.key}`}>
+                      <div className="workspace-home-module-card-head">
+                        <div>
+                          <strong>{section.title}</strong>
+                          <span>{section.hint}</span>
+                        </div>
+                        <button type="button" className="secondary-button" onClick={section.onAction}>
+                          {section.actionLabel}
+                        </button>
+                      </div>
+                      <div className="workspace-home-module-metric">{section.metric}</div>
+                      <div className="workspace-home-link-list">
+                        {section.items.length ? section.items.map((item) => (
+                          <button key={item.id} type="button" className="workspace-home-link-row" onClick={item.onClick}>
+                            <strong>{item.title}</strong>
+                            <span>{item.meta}</span>
+                          </button>
+                        )) : (
+                          <div className="workspace-home-empty">这里还没有可展示的内容。</div>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </article>
+
+              <article className="workspace-home-panel">
+                <div className="workspace-home-panel-head">
+                  <div>
+                    <strong>最近动态</strong>
+                    <span>今天已经动过哪些文档、项目和后台操作，一眼就能回想起来。</span>
+                  </div>
+                </div>
+                <div className="workspace-home-activity-list">
+                  {workspaceActivityFeed.length ? workspaceActivityFeed.map((item) => (
+                    <button key={item.id} type="button" className="workspace-home-activity-item" onClick={item.action}>
+                      <small>{item.group}</small>
+                      <strong>{item.title}</strong>
+                      <span>{item.meta}</span>
+                    </button>
+                  )) : (
+                    <div className="workspace-home-empty">先进入任意模块处理一点内容，这里就会开始有动态了。</div>
+                  )}
+                </div>
+              </article>
+            </section>
+          </section>
+        ) : activeModule === "archive_3d" ? (
         <div
           className="content-grid"
           onDragOver={(event) => event.preventDefault()}
